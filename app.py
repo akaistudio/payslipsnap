@@ -1091,7 +1091,7 @@ def admin_dashboard():
     conn.close()
     return render_template('admin.html', user=user, companies=companies)
 
-# --- API for FinanceSnap ---
+# --- API for SnapSuite ---
 @app.route('/api/payroll')
 def api_payroll():
     api_key = request.headers.get('X-API-Key')
