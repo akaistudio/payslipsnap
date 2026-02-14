@@ -72,6 +72,7 @@ def init_db():
         pt_state TEXT DEFAULT 'Maharashtra',
         tax_regime TEXT DEFAULT 'new',
         status TEXT DEFAULT 'active',
+        payroll_country TEXT DEFAULT 'IN',
         created_at TIMESTAMP DEFAULT NOW()
     )''')
     cur.execute('''CREATE TABLE IF NOT EXISTS payslips (
@@ -112,6 +113,7 @@ def init_db():
     migrations = [
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_superadmin BOOLEAN DEFAULT FALSE",
         "UPDATE users SET is_superadmin = TRUE WHERE id = (SELECT MIN(id) FROM users)",
+        "ALTER TABLE employees ADD COLUMN IF NOT EXISTS payroll_country TEXT DEFAULT 'IN'",
     ]
     for m in migrations:
         try:
@@ -367,6 +369,117 @@ def calc_old_regime_tax(taxable):
         tax = 0
     return tax
 
+# --- Canadian Payroll Calculations ---
+def calc_canadian_payroll(employee, month, year, days_worked, lop_days, other_earnings=0, other_deductions=0):
+    """Calculate Canadian payroll: CPP, EI, Federal + Provincial tax."""
+    annual_salary = float(employee.get('ctc_annual', 0) or 0)
+    monthly_gross_full = annual_salary / 12
+
+    days_in_month = calendar.monthrange(year, month)[1]
+    ratio = days_worked / days_in_month if days_in_month > 0 else 1
+
+    monthly_gross = monthly_gross_full * ratio + other_earnings
+
+    # CPP (2025): 5.95% employee, max pensionable $71,300, basic exemption $3,500
+    cpp_max_pensionable = 71300
+    cpp_basic_exemption = 3500
+    cpp_rate = 0.0595
+    cpp_max_annual = (cpp_max_pensionable - cpp_basic_exemption) * cpp_rate
+    cpp_monthly_max = cpp_max_annual / 12
+    cpp_pensionable = max(0, monthly_gross - cpp_basic_exemption / 12)
+    cpp_employee = min(cpp_pensionable * cpp_rate, cpp_monthly_max)
+    cpp_employer = cpp_employee  # Employer matches
+
+    # EI (2025): 1.63% employee, max insurable $65,700
+    ei_max_insurable = 65700
+    ei_rate = 0.0163
+    ei_max_annual = ei_max_insurable * ei_rate
+    ei_monthly_max = ei_max_annual / 12
+    ei_employee = min(monthly_gross * ei_rate, ei_monthly_max)
+    ei_employer = ei_employee * 1.4  # Employer pays 1.4x
+
+    # Federal Tax (2025 brackets)
+    federal_tax = calc_canadian_federal_tax(annual_salary) / 12 * ratio
+
+    # Provincial Tax
+    province = employee.get('pt_state', 'Ontario')
+    provincial_tax = calc_canadian_provincial_tax(annual_salary, province) / 12 * ratio
+
+    total_deductions = cpp_employee + ei_employee + federal_tax + provincial_tax + other_deductions
+    net_pay = monthly_gross - total_deductions
+
+    return {
+        'days_in_month': days_in_month,
+        'days_worked': days_worked,
+        'lop_days': lop_days,
+        'basic': round(monthly_gross, 2),  # In Canada, "basic" = gross salary
+        'hra': 0,
+        'da': 0,
+        'special_allowance': 0,
+        'other_earnings': round(other_earnings, 2),
+        'gross_earnings': round(monthly_gross, 2),
+        'pf_employee': round(cpp_employee, 2),   # CPP maps to PF field
+        'pf_employer': round(cpp_employer, 2),
+        'esi_employee': round(ei_employee, 2),    # EI maps to ESI field
+        'esi_employer': round(ei_employer, 2),
+        'professional_tax': round(provincial_tax, 2),  # Provincial maps to PT field
+        'tds': round(federal_tax, 2),             # Federal tax maps to TDS field
+        'other_deductions': round(other_deductions, 2),
+        'total_deductions': round(total_deductions, 2),
+        'net_pay': round(net_pay, 2),
+    }
+
+def calc_canadian_federal_tax(annual_income):
+    """2025 Canadian Federal Tax brackets."""
+    # Basic personal amount
+    bpa = 16129
+    taxable = max(0, annual_income - bpa)
+    if taxable <= 0:
+        return 0
+    slabs = [
+        (57375, 0.15),
+        (57375, 0.205),
+        (63088, 0.26),
+        (75408, 0.29),
+        (float('inf'), 0.33),
+    ]
+    tax = 0
+    remaining = taxable
+    for bracket_size, rate in slabs:
+        if remaining <= 0:
+            break
+        amount = min(remaining, bracket_size)
+        tax += amount * rate
+        remaining -= amount
+    return max(0, tax)
+
+def calc_canadian_provincial_tax(annual_income, province):
+    """Simplified provincial tax rates for major provinces."""
+    # Basic personal amounts and top marginal rates (simplified)
+    province_data = {
+        'Ontario': {'bpa': 11865, 'slabs': [(51446, 0.0505), (51446, 0.0915), (150000, 0.1116), (float('inf'), 0.1216)]},
+        'British Columbia': {'bpa': 12580, 'slabs': [(47937, 0.0506), (47937, 0.077), (13658, 0.105), (23044, 0.1229), (48971, 0.147), (float('inf'), 0.168)]},
+        'Alberta': {'bpa': 21003, 'slabs': [(148269, 0.10), (29654, 0.12), (59307, 0.13), (118614, 0.14), (float('inf'), 0.15)]},
+        'Quebec': {'bpa': 17183, 'slabs': [(51780, 0.14), (51780, 0.19), (19305, 0.24), (float('inf'), 0.2575)]},
+        'Manitoba': {'bpa': 15780, 'slabs': [(47000, 0.108), (53000, 0.1275), (float('inf'), 0.174)]},
+        'Saskatchewan': {'bpa': 17661, 'slabs': [(52057, 0.105), (96618, 0.125), (float('inf'), 0.145)]},
+        'Nova Scotia': {'bpa': 8481, 'slabs': [(29590, 0.0879), (29590, 0.1495), (33820, 0.1667), (57000, 0.175), (float('inf'), 0.21)]},
+        'New Brunswick': {'bpa': 13044, 'slabs': [(49958, 0.094), (49958, 0.14), (81348, 0.16), (float('inf'), 0.195)]},
+    }
+    data = province_data.get(province, province_data['Ontario'])
+    taxable = max(0, annual_income - data['bpa'])
+    if taxable <= 0:
+        return 0
+    tax = 0
+    remaining = taxable
+    for bracket_size, rate in data['slabs']:
+        if remaining <= 0:
+            break
+        amount = min(remaining, bracket_size)
+        tax += amount * rate
+        remaining -= amount
+    return max(0, tax)
+
 # --- Dashboard ---
 @app.route('/')
 @login_required
@@ -432,8 +545,8 @@ def add_employee():
                       designation, date_of_joining, pan_number, uan_number, esi_number,
                       bank_name, bank_account, bank_ifsc, ctc_annual, basic_percent,
                       hra_percent, da_amount, pf_applicable, esi_applicable, pt_applicable,
-                      pt_state, tax_regime)
-                      VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                      pt_state, tax_regime, payroll_country)
+                      VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                       RETURNING id''',
                    (user['id'], request.form.get('emp_code', ''),
                     request.form['name'], request.form.get('email', ''),
@@ -449,7 +562,8 @@ def add_employee():
                     request.form.get('esi_applicable') == 'on',
                     request.form.get('pt_applicable') == 'on',
                     request.form.get('pt_state', 'Maharashtra'),
-                    request.form.get('tax_regime', 'new')))
+                    request.form.get('tax_regime', 'new'),
+                    request.form.get('payroll_country', 'IN')))
         conn.close()
         flash(f'Employee {request.form["name"]} added!', 'success')
         return redirect(url_for('employees'))
@@ -475,7 +589,7 @@ def edit_employee(emp_id):
                        uan_number=%s, esi_number=%s, bank_name=%s, bank_account=%s,
                        bank_ifsc=%s, ctc_annual=%s, basic_percent=%s, hra_percent=%s,
                        da_amount=%s, pf_applicable=%s, esi_applicable=%s, pt_applicable=%s,
-                       pt_state=%s, tax_regime=%s, status=%s
+                       pt_state=%s, tax_regime=%s, status=%s, payroll_country=%s
                        WHERE id=%s AND user_id=%s''',
                     (request.form.get('emp_code', ''), request.form['name'],
                      request.form.get('email', ''), request.form.get('phone', ''),
@@ -494,6 +608,7 @@ def edit_employee(emp_id):
                      request.form.get('pt_state', 'Maharashtra'),
                      request.form.get('tax_regime', 'new'),
                      request.form.get('status', 'active'),
+                     request.form.get('payroll_country', 'IN'),
                      emp_id, user['id']))
         conn.close()
         flash(f'Employee updated!', 'success')
@@ -539,7 +654,12 @@ def generate_payslips():
             other_earn = float(request.form.get(f'bonus_{eid}', 0) or 0)
             other_ded = float(request.form.get(f'deduction_{eid}', 0) or 0)
 
-            calc = calc_indian_payroll(emp, month, year, days_worked, lop, other_earn, other_ded)
+            # Branch by country
+            country = emp.get('payroll_country', 'IN')
+            if country == 'CA':
+                calc = calc_canadian_payroll(emp, month, year, days_worked, lop, other_earn, other_ded)
+            else:
+                calc = calc_indian_payroll(emp, month, year, days_worked, lop, other_earn, other_ded)
 
             cur2 = conn.cursor()
             cur2.execute('''INSERT INTO payslips (user_id, employee_id, month, year,
@@ -615,7 +735,7 @@ def view_payslip(slip_id):
     cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     cur.execute('''SELECT p.*, e.name as emp_name, e.emp_code, e.designation, e.department,
                   e.pan_number as emp_pan, e.uan_number, e.bank_name, e.bank_account,
-                  e.date_of_joining
+                  e.date_of_joining, e.payroll_country
                   FROM payslips p JOIN employees e ON p.employee_id = e.id
                   WHERE p.id=%s AND p.user_id=%s''', (slip_id, user['id']))
     slip = cur.fetchone()
@@ -635,7 +755,7 @@ def download_pdf(slip_id):
     cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     cur.execute('''SELECT p.*, e.name as emp_name, e.emp_code, e.designation, e.department,
                   e.pan_number as emp_pan, e.uan_number, e.bank_name, e.bank_account,
-                  e.date_of_joining
+                  e.date_of_joining, e.payroll_country
                   FROM payslips p JOIN employees e ON p.employee_id = e.id
                   WHERE p.id=%s AND p.user_id=%s''', (slip_id, user['id']))
     slip = cur.fetchone()
@@ -723,37 +843,56 @@ def generate_payslip_pdf(user, slip):
 
     pdf.set_y(pdf.get_y() + 6)
 
+    # Country-specific labels and currency
+    country = slip.get('payroll_country', 'IN')
+    if country == 'CA':
+        curr = 'C$'
+        earn_labels = [('Gross Salary', slip.get('basic', 0))]
+        ded_labels = [
+            ('CPP (Employee)', slip.get('pf_employee', 0)),
+            ('EI (Employee)', slip.get('esi_employee', 0)),
+            ('Provincial Tax', slip.get('professional_tax', 0)),
+            ('Federal Tax', slip.get('tds', 0)),
+        ]
+        id_label_1 = 'SIN'
+        id_label_2 = 'CRA BN'
+        employer_labels = f"CPP (Employer): C${float(slip.get('pf_employer', 0) or 0):,.2f}    |    EI (Employer): C${float(slip.get('esi_employer', 0) or 0):,.2f}"
+    else:
+        curr = 'Rs.'
+        earn_labels = [
+            ('Basic', slip.get('basic', 0)),
+            ('HRA', slip.get('hra', 0)),
+            ('DA', slip.get('da', 0)),
+            ('Special Allowance', slip.get('special_allowance', 0)),
+        ]
+        ded_labels = [
+            ('PF (Employee)', slip.get('pf_employee', 0)),
+            ('ESI (Employee)', slip.get('esi_employee', 0)),
+            ('Professional Tax', slip.get('professional_tax', 0)),
+            ('TDS / Income Tax', slip.get('tds', 0)),
+        ]
+        id_label_1 = 'PAN'
+        id_label_2 = 'UAN'
+        employer_labels = f"PF (Employer): Rs.{float(slip.get('pf_employer', 0) or 0):,.2f}    |    ESI (Employer): Rs.{float(slip.get('esi_employer', 0) or 0):,.2f}"
+
+    # Earnings
+    earnings = [(l, v) for l, v in earn_labels if float(v or 0) > 0]
+    if float(slip.get('other_earnings', 0) or 0) > 0:
+        earnings.append(('Other Earnings', slip.get('other_earnings', 0)))
+
+    deductions = [(l, v) for l, v in ded_labels if float(v or 0) > 0]
+    if float(slip.get('other_deductions', 0) or 0) > 0:
+        deductions.append(('Other Deductions', slip.get('other_deductions', 0)))
+
     # Earnings & Deductions side by side
     col_w = 95
-    start_y = pdf.get_y()
 
-    # Earnings header
+    # Headers
     pdf.set_fill_color(br, bg, bb)
     pdf.set_text_color(255, 255, 255)
     pdf.set_font('Helvetica', 'B', 9)
     pdf.cell(col_w, 7, '  EARNINGS', fill=True)
     pdf.cell(col_w, 7, '  DEDUCTIONS', fill=True, ln=True)
-
-    # Rows
-    earnings = [
-        ('Basic', slip.get('basic', 0)),
-        ('HRA', slip.get('hra', 0)),
-        ('DA', slip.get('da', 0)),
-        ('Special Allowance', slip.get('special_allowance', 0)),
-    ]
-    if float(slip.get('other_earnings', 0) or 0) > 0:
-        earnings.append(('Other Earnings', slip.get('other_earnings', 0)))
-
-    deductions = [
-        ('PF (Employee)', slip.get('pf_employee', 0)),
-        ('ESI (Employee)', slip.get('esi_employee', 0)),
-        ('Professional Tax', slip.get('professional_tax', 0)),
-        ('TDS / Income Tax', slip.get('tds', 0)),
-    ]
-    if float(slip.get('other_deductions', 0) or 0) > 0:
-        deductions.append(('Other Deductions', slip.get('other_deductions', 0)))
-
-    max_rows = max(len(earnings), len(deductions))
     for i in range(max_rows):
         if i % 2 == 0:
             pdf.set_fill_color(248, 250, 252)
@@ -767,7 +906,7 @@ def generate_payslip_pdf(user, slip):
             pdf.cell(60, 6, f"  {earnings[i][0]}", fill=True)
             pdf.set_text_color(30, 30, 30)
             pdf.set_font('Helvetica', 'B', 9)
-            pdf.cell(35, 6, f"Rs. {float(earnings[i][1] or 0):,.2f}", align='R', fill=True)
+            pdf.cell(35, 6, f"{curr} {float(earnings[i][1] or 0):,.2f}", align='R', fill=True)
         else:
             pdf.cell(col_w, 6, '', fill=True)
 
@@ -778,7 +917,7 @@ def generate_payslip_pdf(user, slip):
             pdf.cell(60, 6, f"  {deductions[i][0]}", fill=True)
             pdf.set_text_color(30, 30, 30)
             pdf.set_font('Helvetica', 'B', 9)
-            pdf.cell(35, 6, f"Rs. {float(deductions[i][1] or 0):,.2f}", align='R', fill=True)
+            pdf.cell(35, 6, f"{curr} {float(deductions[i][1] or 0):,.2f}", align='R', fill=True)
         else:
             pdf.cell(col_w, 6, '', fill=True)
         pdf.ln()
@@ -788,9 +927,9 @@ def generate_payslip_pdf(user, slip):
     pdf.set_text_color(255, 255, 255)
     pdf.set_font('Helvetica', 'B', 9)
     pdf.cell(60, 7, '  GROSS EARNINGS', fill=True)
-    pdf.cell(35, 7, f"Rs. {float(slip.get('gross_earnings', 0) or 0):,.2f}", align='R', fill=True)
+    pdf.cell(35, 7, f"{curr} {float(slip.get('gross_earnings', 0) or 0):,.2f}", align='R', fill=True)
     pdf.cell(60, 7, '  TOTAL DEDUCTIONS', fill=True)
-    pdf.cell(35, 7, f"Rs. {float(slip.get('total_deductions', 0) or 0):,.2f}", align='R', fill=True)
+    pdf.cell(35, 7, f"{curr} {float(slip.get('total_deductions', 0) or 0):,.2f}", align='R', fill=True)
     pdf.ln()
 
     # Net Pay box
@@ -800,7 +939,7 @@ def generate_payslip_pdf(user, slip):
     pdf.set_font('Helvetica', 'B', 12)
     pdf.set_text_color(22, 101, 52)
     net = float(slip.get('net_pay', 0) or 0)
-    pdf.cell(0, 12, f"  NET PAY:  Rs. {net:,.2f}", fill=True, border=1, ln=True)
+    pdf.cell(0, 12, f"  NET PAY:  {curr} {net:,.2f}", fill=True, border=1, ln=True)
 
     # Employer contributions
     pdf.set_y(pdf.get_y() + 8)
@@ -808,9 +947,7 @@ def generate_payslip_pdf(user, slip):
     pdf.set_text_color(100, 100, 100)
     pdf.cell(0, 5, 'EMPLOYER CONTRIBUTIONS (Not deducted from salary)', ln=True)
     pdf.set_font('Helvetica', '', 8)
-    pf_er = float(slip.get('pf_employer', 0) or 0)
-    esi_er = float(slip.get('esi_employer', 0) or 0)
-    pdf.cell(0, 4, f"PF (Employer): Rs. {pf_er:,.2f}    |    ESI (Employer): Rs. {esi_er:,.2f}", ln=True)
+    pdf.cell(0, 4, employer_labels, ln=True)
 
     # Footer
     if pdf.get_y() < 270:

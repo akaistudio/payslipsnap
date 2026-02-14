@@ -46,33 +46,50 @@
         <div class="earn-ded">
             <div class="section">
                 <h4>Earnings</h4>
+                {% if slip.payroll_country == 'CA' %}
+                <div class="line"><span class="label">Gross Salary</span><span class="value">C${{ "{:,.2f}".format(slip.basic) }}</span></div>
+                {% else %}
                 <div class="line"><span class="label">Basic</span><span class="value">Rs.{{ "{:,.2f}".format(slip.basic) }}</span></div>
                 <div class="line"><span class="label">HRA</span><span class="value">Rs.{{ "{:,.2f}".format(slip.hra) }}</span></div>
                 {% if slip.da > 0 %}<div class="line"><span class="label">DA</span><span class="value">Rs.{{ "{:,.2f}".format(slip.da) }}</span></div>{% endif %}
                 <div class="line"><span class="label">Special Allowance</span><span class="value">Rs.{{ "{:,.2f}".format(slip.special_allowance) }}</span></div>
-                {% if slip.other_earnings > 0 %}<div class="line"><span class="label">Other Earnings</span><span class="value">Rs.{{ "{:,.2f}".format(slip.other_earnings) }}</span></div>{% endif %}
-                <div class="line total"><span class="label">Gross Earnings</span><span class="value">Rs.{{ "{:,.2f}".format(slip.gross_earnings) }}</span></div>
+                {% endif %}
+                {% set curr = 'C$' if slip.payroll_country == 'CA' else 'Rs.' %}
+                {% if slip.other_earnings > 0 %}<div class="line"><span class="label">Other Earnings</span><span class="value">{{ curr }}{{ "{:,.2f}".format(slip.other_earnings) }}</span></div>{% endif %}
+                <div class="line total"><span class="label">Gross Earnings</span><span class="value">{{ curr }}{{ "{:,.2f}".format(slip.gross_earnings) }}</span></div>
             </div>
             <div class="section">
                 <h4>Deductions</h4>
+                {% if slip.payroll_country == 'CA' %}
+                {% if slip.pf_employee > 0 %}<div class="line"><span class="label">CPP (Employee)</span><span class="value">C${{ "{:,.2f}".format(slip.pf_employee) }}</span></div>{% endif %}
+                {% if slip.esi_employee > 0 %}<div class="line"><span class="label">EI (Employee)</span><span class="value">C${{ "{:,.2f}".format(slip.esi_employee) }}</span></div>{% endif %}
+                {% if slip.professional_tax > 0 %}<div class="line"><span class="label">Provincial Tax</span><span class="value">C${{ "{:,.2f}".format(slip.professional_tax) }}</span></div>{% endif %}
+                {% if slip.tds > 0 %}<div class="line"><span class="label">Federal Tax</span><span class="value">C${{ "{:,.2f}".format(slip.tds) }}</span></div>{% endif %}
+                {% else %}
                 {% if slip.pf_employee > 0 %}<div class="line"><span class="label">PF (Employee)</span><span class="value">Rs.{{ "{:,.2f}".format(slip.pf_employee) }}</span></div>{% endif %}
                 {% if slip.esi_employee > 0 %}<div class="line"><span class="label">ESI (Employee)</span><span class="value">Rs.{{ "{:,.2f}".format(slip.esi_employee) }}</span></div>{% endif %}
                 {% if slip.professional_tax > 0 %}<div class="line"><span class="label">Professional Tax</span><span class="value">Rs.{{ "{:,.2f}".format(slip.professional_tax) }}</span></div>{% endif %}
                 {% if slip.tds > 0 %}<div class="line"><span class="label">TDS / Income Tax</span><span class="value">Rs.{{ "{:,.2f}".format(slip.tds) }}</span></div>{% endif %}
-                {% if slip.other_deductions > 0 %}<div class="line"><span class="label">Other Deductions</span><span class="value">Rs.{{ "{:,.2f}".format(slip.other_deductions) }}</span></div>{% endif %}
-                <div class="line total"><span class="label">Total Deductions</span><span class="value">Rs.{{ "{:,.2f}".format(slip.total_deductions) }}</span></div>
+                {% endif %}
+                {% if slip.other_deductions > 0 %}<div class="line"><span class="label">Other Deductions</span><span class="value">{{ curr }}{{ "{:,.2f}".format(slip.other_deductions) }}</span></div>{% endif %}
+                <div class="line total"><span class="label">Total Deductions</span><span class="value">{{ curr }}{{ "{:,.2f}".format(slip.total_deductions) }}</span></div>
             </div>
         </div>
 
         <div class="net-pay">
             <div class="label">Net Pay</div>
-            <div class="amount">Rs.{{ "{:,.2f}".format(slip.net_pay) }}</div>
+            <div class="amount">{{ curr }}{{ "{:,.2f}".format(slip.net_pay) }}</div>
         </div>
 
         <div class="employer-contrib">
             <strong>Employer Contributions</strong> (not deducted from salary):
+            {% if slip.payroll_country == 'CA' %}
+            CPP: C${{ "{:,.2f}".format(slip.pf_employer) }}
+            {% if slip.esi_employer > 0 %} | EI: C${{ "{:,.2f}".format(slip.esi_employer) }}{% endif %}
+            {% else %}
             PF: Rs.{{ "{:,.2f}".format(slip.pf_employer) }}
             {% if slip.esi_employer > 0 %} | ESI: Rs.{{ "{:,.2f}".format(slip.esi_employer) }}{% endif %}
+            {% endif %}
         </div>
     </div>
 </div>
