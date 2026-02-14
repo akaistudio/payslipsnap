@@ -135,7 +135,7 @@ def register_with_hub(company_name, email, currency):
         http_requests.post(f'{hub}/api/register-company', json={
             'app_name': 'PayslipSnap', 'company_name': company_name,
             'email': email, 'currency': currency,
-            'app_url': 'https://payslipsnap-app.up.railway.app'
+            'app_url': 'https://payslipsnap.up.railway.app'
         }, timeout=5)
     except: pass
 
