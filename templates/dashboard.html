@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PayslipSnap — Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        *{margin:0;padding:0;box-sizing:border-box}body{font-family:'Inter',sans-serif;background:#f0f4f8;min-height:100vh}.topbar{background:#fff;border-bottom:1px solid #e2e8f0;padding:14px 24px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}.topbar h1{font-size:20px;font-weight:700;color:#1e293b}.topbar h1 span{color:#7c3aed}.topbar-right{display:flex;align-items:center;gap:10px}.topbar-right a{font-size:13px;color:#64748b;text-decoration:none;padding:8px 14px;border-radius:8px;transition:all .2s}.topbar-right a:hover{background:#f1f5f9;color:#1e293b}.topbar-right a.primary{background:#7c3aed;color:#fff;font-weight:600}.topbar-right a.primary:hover{background:#6d28d9}.main{max-width:1100px;margin:0 auto;padding:24px}.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:24px}.stat-card{background:#fff;border-radius:12px;padding:20px;box-shadow:0 1px 3px rgba(0,0,0,.06)}.stat-card .label{font-size:12px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.5px}.stat-card .value{font-size:28px;font-weight:700;color:#1e293b;margin-top:4px}.stat-card .sub{font-size:13px;color:#94a3b8;margin-top:2px}.stat-card.emp{border-left:4px solid #7c3aed}.stat-card.payout{border-left:4px solid #22c55e}.stat-card.tds{border-left:4px solid #f59e0b}.stat-card.pf{border-left:4px solid #2563eb}.card{background:#fff;border-radius:12px;padding:24px;box-shadow:0 1px 3px rgba(0,0,0,.06);margin-bottom:20px}.card h3{font-size:16px;font-weight:700;color:#1e293b;margin-bottom:16px}table{width:100%;border-collapse:collapse}th{padding:10px 14px;text-align:left;font-size:12px;font-weight:600;color:#64748b;text-transform:uppercase;background:#f8fafc;border-bottom:1px solid #e2e8f0}td{padding:12px 14px;font-size:14px;color:#374151;border-bottom:1px solid #f1f5f9}tr:hover{background:#f8fafc}.status{display:inline-block;padding:4px 10px;border-radius:20px;font-size:12px;font-weight:600}.status.generated{background:#dcfce7;color:#16a34a}.status.draft{background:#f1f5f9;color:#64748b}.actions a{color:#7c3aed;text-decoration:none;font-weight:500;font-size:13px}.actions a:hover{text-decoration:underline}.empty{text-align:center;padding:48px 20px}.empty h3{font-size:18px;color:#374151;margin-bottom:8px}.empty p{color:#94a3b8;font-size:14px;margin-bottom:16px}.empty a{display:inline-block;padding:10px 20px;background:#7c3aed;color:#fff;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px}.flash{padding:12px 16px;border-radius:10px;font-size:14px;margin-bottom:16px}.flash.success{background:#f0fdf4;color:#16a34a;border:1px solid #bbf7d0}.flash.error{background:#fef2f2;color:#dc2626;border:1px solid #fecaca}
+    </style>
+</head>
+<body>
+<div class="topbar">
+    <h1>Payslip<span>Snap</span></h1>
+    <div class="topbar-right">
+        <a href="/generate" class="primary">📋 Generate Payslips</a>
+        <a href="/employees">👥 Employees</a>
+        <a href="/payslips">📄 Payslips</a>
+        <a href="/yearend">📊 Year-End</a>
+        {% if user.is_superadmin %}<a href="/admin">👑 Admin</a>{% endif %}
+        <a href="/settings">⚙️</a>
+        <a href="/logout">Sign out</a>
+    </div>
+</div>
+<div class="main">
+    {% with messages = get_flashed_messages(with_categories=true) %}{% for cat, msg in messages %}<div class="flash {{ cat }}">{{ msg }}</div>{% endfor %}{% endwith %}
+
+    <div class="stats">
+        <div class="stat-card emp">
+            <div class="label">Active Employees</div>
+            <div class="value">{{ emp_stats.active }}</div>
+            <div class="sub">{{ emp_stats.total }} total</div>
+        </div>
+        <div class="stat-card payout">
+            <div class="label">{{ now.strftime('%B') }} Payout</div>
+            <div class="value">Rs.{{ "{:,.0f}".format(payroll.total_payout) }}</div>
+            <div class="sub">{{ payroll.generated }} payslips</div>
+        </div>
+        <div class="stat-card tds">
+            <div class="label">{{ now.strftime('%B') }} TDS</div>
+            <div class="value">Rs.{{ "{:,.0f}".format(payroll.total_tds) }}</div>
+        </div>
+        <div class="stat-card pf">
+            <div class="label">{{ now.strftime('%B') }} PF</div>
+            <div class="value">Rs.{{ "{:,.0f}".format(payroll.total_pf) }}</div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Recent Payslips</h3>
+        {% if recent %}
+        <table>
+            <thead><tr><th>Employee</th><th>Period</th><th>Gross</th><th>Deductions</th><th>Net Pay</th><th>Status</th><th>Actions</th></tr></thead>
+            <tbody>
+            {% for s in recent %}
+            <tr>
+                <td><strong>{{ s.emp_name }}</strong><br><span style="font-size:12px;color:#94a3b8">{{ s.emp_code }} · {{ s.designation }}</span></td>
+                <td>{{ ['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][s.month] }} {{ s.year }}</td>
+                <td>Rs.{{ "{:,.0f}".format(s.gross_earnings) }}</td>
+                <td>Rs.{{ "{:,.0f}".format(s.total_deductions) }}</td>
+                <td><strong>Rs.{{ "{:,.0f}".format(s.net_pay) }}</strong></td>
+                <td><span class="status {{ s.status }}">{{ s.status | capitalize }}</span></td>
+                <td class="actions"><a href="/payslip/{{ s.id }}">View</a> · <a href="/payslip/{{ s.id }}/pdf">PDF</a></td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div class="empty">
+            <h3>No payslips yet</h3>
+            <p>Add employees first, then generate monthly payslips.</p>
+            <a href="/employees">👥 Add Employees</a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+</body></html>

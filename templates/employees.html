@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PayslipSnap — Employees</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        *{margin:0;padding:0;box-sizing:border-box}body{font-family:'Inter',sans-serif;background:#f0f4f8;min-height:100vh}.topbar{background:#fff;border-bottom:1px solid #e2e8f0;padding:14px 24px;display:flex;align-items:center;justify-content:space-between}.topbar h1{font-size:20px;font-weight:700;color:#1e293b}.topbar h1 span{color:#7c3aed}.topbar a{font-size:13px;color:#64748b;text-decoration:none;padding:8px 14px;border-radius:8px}.topbar a:hover{background:#f1f5f9}.main{max-width:1100px;margin:0 auto;padding:24px}.header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}.header h2{font-size:22px;font-weight:700;color:#1e293b}.add-btn{padding:10px 20px;background:#7c3aed;color:#fff;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px}.add-btn:hover{background:#6d28d9}.filters{display:flex;gap:8px;margin-bottom:16px}.filter-btn{padding:7px 14px;border-radius:8px;border:1.5px solid #e2e8f0;background:#fff;font-size:13px;font-weight:500;cursor:pointer;color:#64748b;text-decoration:none}.filter-btn:hover,.filter-btn.active{border-color:#7c3aed;color:#7c3aed;background:#faf5ff}.card{background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.06)}table{width:100%;border-collapse:collapse}th{padding:10px 14px;text-align:left;font-size:12px;font-weight:600;color:#64748b;text-transform:uppercase;background:#f8fafc;border-bottom:1px solid #e2e8f0}td{padding:12px 14px;font-size:14px;color:#374151;border-bottom:1px solid #f1f5f9}tr:hover{background:#f8fafc}.status{display:inline-block;padding:3px 8px;border-radius:12px;font-size:11px;font-weight:600}.status.active{background:#dcfce7;color:#16a34a}.status.inactive{background:#fee2e2;color:#dc2626}.actions a{color:#7c3aed;text-decoration:none;font-weight:500;font-size:13px}.flash{padding:12px 16px;border-radius:10px;font-size:14px;margin-bottom:16px}.flash.success{background:#f0fdf4;color:#16a34a;border:1px solid #bbf7d0}
+    </style>
+</head>
+<body>
+<div class="topbar"><h1>Payslip<span>Snap</span></h1><a href="/">← Dashboard</a></div>
+<div class="main">
+    {% with messages = get_flashed_messages(with_categories=true) %}{% for cat, msg in messages %}<div class="flash {{ cat }}">{{ msg }}</div>{% endfor %}{% endwith %}
+    <div class="header">
+        <h2>👥 Employees</h2>
+        <a href="/employee/add" class="add-btn">+ Add Employee</a>
+    </div>
+    <div class="filters">
+        <a href="/employees?status=active" class="filter-btn {% if status_filter=='active' %}active{% endif %}">Active</a>
+        <a href="/employees?status=inactive" class="filter-btn {% if status_filter=='inactive' %}active{% endif %}">Inactive</a>
+        <a href="/employees?status=all" class="filter-btn {% if status_filter=='all' %}active{% endif %}">All</a>
+    </div>
+    <div class="card">
+        <table>
+            <thead><tr><th>Code</th><th>Name</th><th>Department</th><th>Designation</th><th>CTC (Annual)</th><th>Status</th><th>Actions</th></tr></thead>
+            <tbody>
+            {% for e in employees %}
+            <tr>
+                <td>{{ e.emp_code or '-' }}</td>
+                <td><strong>{{ e.name }}</strong><br><span style="font-size:12px;color:#94a3b8">{{ e.email }}</span></td>
+                <td>{{ e.department or '-' }}</td>
+                <td>{{ e.designation or '-' }}</td>
+                <td><strong>Rs.{{ "{:,.0f}".format(e.ctc_annual) }}</strong><br><span style="font-size:12px;color:#94a3b8">Rs.{{ "{:,.0f}".format(e.ctc_annual/12) }}/mo</span></td>
+                <td><span class="status {{ e.status }}">{{ e.status | capitalize }}</span></td>
+                <td class="actions"><a href="/employee/{{ e.id }}/edit">Edit</a></td>
+            </tr>
+            {% endfor %}
+            {% if not employees %}
+            <tr><td colspan="7" style="text-align:center;padding:40px;color:#94a3b8">No employees yet. <a href="/employee/add" style="color:#7c3aed">Add your first employee →</a></td></tr>
+            {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+</body></html>

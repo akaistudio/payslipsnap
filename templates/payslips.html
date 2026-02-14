@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PayslipSnap — {{ month_name }} {{ year }} Payslips</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        *{margin:0;padding:0;box-sizing:border-box}body{font-family:'Inter',sans-serif;background:#f0f4f8;min-height:100vh}.topbar{background:#fff;border-bottom:1px solid #e2e8f0;padding:14px 24px;display:flex;align-items:center;justify-content:space-between}.topbar h1{font-size:20px;font-weight:700;color:#1e293b}.topbar h1 span{color:#7c3aed}.topbar a{font-size:13px;color:#64748b;text-decoration:none;padding:8px 14px;border-radius:8px}.main{max-width:1100px;margin:0 auto;padding:24px}h2{font-size:22px;font-weight:700;color:#1e293b;margin-bottom:20px}.nav-months{display:flex;gap:8px;align-items:center;margin-bottom:20px}.nav-btn{padding:8px 16px;background:#fff;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;color:#64748b;text-decoration:none;font-weight:500}.nav-btn:hover{border-color:#7c3aed;color:#7c3aed}.nav-btn.current{background:#7c3aed;color:#fff;border-color:#7c3aed}.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:20px}.stat{background:#fff;border-radius:10px;padding:16px;box-shadow:0 1px 3px rgba(0,0,0,.06);text-align:center}.stat .label{font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase}.stat .value{font-size:20px;font-weight:700;color:#1e293b;margin-top:2px}.card{background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.06)}table{width:100%;border-collapse:collapse}th{padding:10px 14px;text-align:left;font-size:12px;font-weight:600;color:#64748b;text-transform:uppercase;background:#f8fafc;border-bottom:1px solid #e2e8f0}td{padding:12px 14px;font-size:14px;color:#374151;border-bottom:1px solid #f1f5f9}tr:hover{background:#f8fafc}.actions a{color:#7c3aed;text-decoration:none;font-weight:500;font-size:13px}.flash{padding:12px 16px;border-radius:10px;font-size:14px;margin-bottom:16px}.flash.success{background:#f0fdf4;color:#16a34a;border:1px solid #bbf7d0}
+    </style>
+</head>
+<body>
+<div class="topbar"><h1>Payslip<span>Snap</span></h1><a href="/">← Dashboard</a></div>
+<div class="main">
+    {% with messages = get_flashed_messages(with_categories=true) %}{% for cat, msg in messages %}<div class="flash {{ cat }}">{{ msg }}</div>{% endfor %}{% endwith %}
+
+    <h2>📄 {{ month_name }} {{ year }} Payslips</h2>
+
+    <div class="nav-months">
+        {% set prev_m = month - 1 if month > 1 else 12 %}
+        {% set prev_y = year if month > 1 else year - 1 %}
+        {% set next_m = month + 1 if month < 12 else 1 %}
+        {% set next_y = year if month < 12 else year + 1 %}
+        <a href="/payslips?month={{ prev_m }}&year={{ prev_y }}" class="nav-btn">← {{ ['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][prev_m] }}</a>
+        <span class="nav-btn current">{{ month_name }} {{ year }}</span>
+        <a href="/payslips?month={{ next_m }}&year={{ next_y }}" class="nav-btn">{{ ['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][next_m] }} →</a>
+    </div>
+
+    {% if payslips %}
+    <div class="stats">
+        <div class="stat"><div class="label">Employees</div><div class="value">{{ totals.count }}</div></div>
+        <div class="stat"><div class="label">Gross Pay</div><div class="value">Rs.{{ "{:,.0f}".format(totals.total_gross) }}</div></div>
+        <div class="stat"><div class="label">Net Payout</div><div class="value" style="color:#16a34a">Rs.{{ "{:,.0f}".format(totals.total_net) }}</div></div>
+        <div class="stat"><div class="label">TDS</div><div class="value" style="color:#f59e0b">Rs.{{ "{:,.0f}".format(totals.total_tds) }}</div></div>
+        <div class="stat"><div class="label">PF (EE+ER)</div><div class="value" style="color:#2563eb">Rs.{{ "{:,.0f}".format(totals.total_pf) }}</div></div>
+        <div class="stat"><div class="label">Prof Tax</div><div class="value">Rs.{{ "{:,.0f}".format(totals.total_pt) }}</div></div>
+    </div>
+
+    <div class="card">
+        <table>
+            <thead><tr><th>Employee</th><th>Days</th><th>Basic</th><th>Gross</th><th>PF</th><th>TDS</th><th>Net Pay</th><th>Actions</th></tr></thead>
+            <tbody>
+            {% for s in payslips %}
+            <tr>
+                <td><strong>{{ s.emp_name }}</strong><br><span style="font-size:12px;color:#94a3b8">{{ s.emp_code }} · {{ s.department }}</span></td>
+                <td>{{ s.days_worked }}/{{ s.days_in_month }}</td>
+                <td>Rs.{{ "{:,.0f}".format(s.basic) }}</td>
+                <td>Rs.{{ "{:,.0f}".format(s.gross_earnings) }}</td>
+                <td>Rs.{{ "{:,.0f}".format(s.pf_employee) }}</td>
+                <td>Rs.{{ "{:,.0f}".format(s.tds) }}</td>
+                <td><strong>Rs.{{ "{:,.0f}".format(s.net_pay) }}</strong></td>
+                <td class="actions"><a href="/payslip/{{ s.id }}">View</a> · <a href="/payslip/{{ s.id }}/pdf">PDF</a></td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="card" style="padding:48px;text-align:center">
+        <p style="color:#94a3b8;font-size:14px;margin-bottom:12px">No payslips for {{ month_name }} {{ year }}.</p>
+        <a href="/generate" style="color:#7c3aed;font-weight:600">Generate payslips →</a>
+    </div>
+    {% endif %}
+</div>
+</body></html>

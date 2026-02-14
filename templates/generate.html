@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PayslipSnap — Generate Payslips</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        *{margin:0;padding:0;box-sizing:border-box}body{font-family:'Inter',sans-serif;background:#f0f4f8;min-height:100vh}.topbar{background:#fff;border-bottom:1px solid #e2e8f0;padding:14px 24px;display:flex;align-items:center;justify-content:space-between}.topbar h1{font-size:20px;font-weight:700;color:#1e293b}.topbar h1 span{color:#7c3aed}.topbar a{font-size:13px;color:#64748b;text-decoration:none;padding:8px 14px;border-radius:8px}.main{max-width:900px;margin:0 auto;padding:24px}h2{font-size:22px;font-weight:700;color:#1e293b;margin-bottom:6px}.subtitle{color:#64748b;font-size:14px;margin-bottom:24px}.card{background:#fff;border-radius:12px;padding:24px;box-shadow:0 1px 3px rgba(0,0,0,.06);margin-bottom:20px}.card h3{font-size:15px;font-weight:700;color:#374151;margin-bottom:16px}.row{display:grid;grid-template-columns:1fr 1fr;gap:16px}.form-group{margin-bottom:16px}.form-group label{display:block;font-size:13px;font-weight:600;color:#374151;margin-bottom:5px}.form-group select,.form-group input{width:100%;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;font-family:'Inter',sans-serif}.form-group select:focus,.form-group input:focus{outline:none;border-color:#7c3aed}table{width:100%;border-collapse:collapse}th{padding:8px 12px;text-align:left;font-size:12px;font-weight:600;color:#64748b;text-transform:uppercase;background:#f8fafc;border-bottom:1px solid #e2e8f0}td{padding:10px 12px;font-size:14px;color:#374151;border-bottom:1px solid #f1f5f9}td input{width:70px;padding:6px 8px;border:1.5px solid #e2e8f0;border-radius:6px;font-size:13px;text-align:center}.btn{padding:13px 28px;background:#7c3aed;color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif}.btn:hover{background:#6d28d9}.actions{display:flex;justify-content:flex-end;gap:12px;margin-top:8px}.check-all{accent-color:#7c3aed}
+    </style>
+</head>
+<body>
+<div class="topbar"><h1>Payslip<span>Snap</span></h1><a href="/">← Dashboard</a></div>
+<div class="main">
+    <h2>📋 Generate Payslips</h2>
+    <p class="subtitle">Select month and employees to generate salary slips with auto-calculated taxes.</p>
+
+    <form method="POST">
+        <div class="card">
+            <h3>Pay Period</h3>
+            <div class="row">
+                <div class="form-group"><label>Month</label>
+                    <select name="month">
+                        {% for m in range(1,13) %}
+                        <option value="{{ m }}" {% if m == current_month %}selected{% endif %}>{{ ['','January','February','March','April','May','June','July','August','September','October','November','December'][m] }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group"><label>Year</label>
+                    <select name="year">
+                        {% for y in range(current_year-1, current_year+2) %}
+                        <option value="{{ y }}" {% if y == current_year %}selected{% endif %}>{{ y }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>Employees <span style="font-size:13px;color:#94a3b8;font-weight:400">(leave unchecked = all active employees)</span></h3>
+            {% if employees %}
+            <table>
+                <thead><tr><th><input type="checkbox" class="check-all" onclick="toggleAll(this)"></th><th>Employee</th><th>CTC/Month</th><th>LOP Days</th><th>Bonus/OT</th><th>Deductions</th></tr></thead>
+                <tbody>
+                {% for e in employees %}
+                <tr>
+                    <td><input type="checkbox" name="employee_ids" value="{{ e.id }}" class="check-all emp-check"></td>
+                    <td><strong>{{ e.name }}</strong><br><span style="font-size:12px;color:#94a3b8">{{ e.emp_code }} · {{ e.designation }}</span></td>
+                    <td>Rs.{{ "{:,.0f}".format(e.ctc_annual/12) }}</td>
+                    <td><input type="number" name="lop_{{ e.id }}" value="0" min="0" max="31"></td>
+                    <td><input type="number" name="bonus_{{ e.id }}" value="0" min="0" step="100" placeholder="0"></td>
+                    <td><input type="number" name="deduction_{{ e.id }}" value="0" min="0" step="100" placeholder="0"></td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <p style="color:#94a3b8;text-align:center;padding:20px">No active employees. <a href="/employee/add" style="color:#7c3aed">Add employees first.</a></p>
+            {% endif %}
+        </div>
+
+        {% if employees %}
+        <div class="actions">
+            <button type="submit" class="btn">🚀 Generate Payslips</button>
+        </div>
+        {% endif %}
+    </form>
+</div>
+<script>
+function toggleAll(el){document.querySelectorAll('.emp-check').forEach(c=>c.checked=el.checked)}
+</script>
+</body></html>

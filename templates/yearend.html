@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PayslipSnap — Year-End Summary FY {{ fy }}</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        *{margin:0;padding:0;box-sizing:border-box}body{font-family:'Inter',sans-serif;background:#f0f4f8;min-height:100vh}.topbar{background:#fff;border-bottom:1px solid #e2e8f0;padding:14px 24px;display:flex;align-items:center;justify-content:space-between}.topbar h1{font-size:20px;font-weight:700;color:#1e293b}.topbar h1 span{color:#7c3aed}.topbar a{font-size:13px;color:#64748b;text-decoration:none;padding:8px 14px;border-radius:8px}.main{max-width:1200px;margin:0 auto;padding:24px}h2{font-size:22px;font-weight:700;color:#1e293b;margin-bottom:6px}.subtitle{color:#64748b;font-size:14px;margin-bottom:20px}.fy-nav{display:flex;gap:8px;margin-bottom:20px}.fy-btn{padding:8px 16px;background:#fff;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;color:#64748b;text-decoration:none;font-weight:500}.fy-btn:hover{border-color:#7c3aed;color:#7c3aed}.fy-btn.current{background:#7c3aed;color:#fff;border-color:#7c3aed}.summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:24px}.summary-card{background:#fff;border-radius:10px;padding:16px;box-shadow:0 1px 3px rgba(0,0,0,.06);text-align:center}.summary-card .label{font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase}.summary-card .value{font-size:22px;font-weight:700;color:#1e293b;margin-top:2px}.card{background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.06)}table{width:100%;border-collapse:collapse}th{padding:10px 12px;text-align:left;font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;background:#f8fafc;border-bottom:1px solid #e2e8f0}td{padding:10px 12px;font-size:13px;color:#374151;border-bottom:1px solid #f1f5f9}tr:hover{background:#f8fafc}tr:last-child td{font-weight:700;background:#faf5ff}
+    </style>
+</head>
+<body>
+<div class="topbar"><h1>Payslip<span>Snap</span></h1><a href="/">← Dashboard</a></div>
+<div class="main">
+    <h2>📊 Year-End Summary</h2>
+    <p class="subtitle">Financial Year {{ start_year }}-{{ end_year }} (April {{ start_year }} to March {{ end_year }})</p>
+
+    <div class="fy-nav">
+        <a href="/yearend?fy={{ start_year-1 }}-{{ start_year }}" class="fy-btn">← FY {{ start_year-1 }}-{{ start_year }}</a>
+        <span class="fy-btn current">FY {{ start_year }}-{{ end_year }}</span>
+        <a href="/yearend?fy={{ start_year+1 }}-{{ end_year+1 }}" class="fy-btn">FY {{ start_year+1 }}-{{ end_year+1 }} →</a>
+    </div>
+
+    <div class="summary">
+        <div class="summary-card"><div class="label">Total Gross</div><div class="value">Rs.{{ "{:,.0f}".format(totals.total_gross) }}</div></div>
+        <div class="summary-card"><div class="label">Total TDS</div><div class="value" style="color:#f59e0b">Rs.{{ "{:,.0f}".format(totals.total_tds) }}</div></div>
+        <div class="summary-card"><div class="label">Total PF (EE+ER)</div><div class="value" style="color:#2563eb">Rs.{{ "{:,.0f}".format(totals.total_pf) }}</div></div>
+        <div class="summary-card"><div class="label">Total Net Paid</div><div class="value" style="color:#16a34a">Rs.{{ "{:,.0f}".format(totals.total_net) }}</div></div>
+    </div>
+
+    <div class="card">
+        <table>
+            <thead>
+                <tr>
+                    <th>Employee</th><th>PAN</th><th>Months</th>
+                    <th>Gross</th><th>Basic</th><th>HRA</th>
+                    <th>PF (EE)</th><th>PF (ER)</th><th>Prof Tax</th><th>TDS</th>
+                    <th>Net Paid</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for e in employees %}
+            <tr>
+                <td><strong>{{ e.name }}</strong><br><span style="font-size:11px;color:#94a3b8">{{ e.emp_code }}</span></td>
+                <td style="font-size:12px">{{ e.pan_number or '-' }}</td>
+                <td>{{ e.months_paid }}</td>
+                <td>Rs.{{ "{:,.0f}".format(e.total_gross) }}</td>
+                <td>Rs.{{ "{:,.0f}".format(e.total_basic) }}</td>
+                <td>Rs.{{ "{:,.0f}".format(e.total_hra) }}</td>
+                <td>Rs.{{ "{:,.0f}".format(e.total_pf_ee) }}</td>
+                <td>Rs.{{ "{:,.0f}".format(e.total_pf_er) }}</td>
+                <td>Rs.{{ "{:,.0f}".format(e.total_pt) }}</td>
+                <td style="color:#f59e0b;font-weight:600">Rs.{{ "{:,.0f}".format(e.total_tds) }}</td>
+                <td style="color:#16a34a;font-weight:600">Rs.{{ "{:,.0f}".format(e.total_net) }}</td>
+            </tr>
+            {% endfor %}
+            {% if employees %}
+            <tr>
+                <td>TOTAL</td><td></td><td></td>
+                <td>Rs.{{ "{:,.0f}".format(totals.total_gross) }}</td>
+                <td></td><td></td>
+                <td colspan="2">Rs.{{ "{:,.0f}".format(totals.total_pf) }}</td>
+                <td></td>
+                <td>Rs.{{ "{:,.0f}".format(totals.total_tds) }}</td>
+                <td>Rs.{{ "{:,.0f}".format(totals.total_net) }}</td>
+            </tr>
+            {% endif %}
+            </tbody>
+        </table>
+    </div>
+    <p style="font-size:12px;color:#94a3b8;margin-top:12px;text-align:center">This is a summary for payroll reporting. For official Form 16, consult your CA.</p>
+</div>
+</body></html>

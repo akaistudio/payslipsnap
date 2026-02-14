@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PayslipSnap — {{ slip.emp_name }} - {{ month_name }} {{ slip.year }}</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        *{margin:0;padding:0;box-sizing:border-box}body{font-family:'Inter',sans-serif;background:#f0f4f8;min-height:100vh}.topbar{background:#fff;border-bottom:1px solid #e2e8f0;padding:14px 24px;display:flex;align-items:center;justify-content:space-between}.topbar h1{font-size:20px;font-weight:700;color:#1e293b}.topbar h1 span{color:#7c3aed}.topbar-right{display:flex;gap:8px}.topbar-right a{font-size:13px;color:#64748b;text-decoration:none;padding:8px 14px;border-radius:8px}.topbar-right a.primary{background:#7c3aed;color:#fff;font-weight:600}.main{max-width:800px;margin:0 auto;padding:24px}.payslip-card{background:#fff;border-radius:12px;padding:32px;box-shadow:0 1px 3px rgba(0,0,0,.06)}.company-row{display:flex;justify-content:space-between;margin-bottom:24px}.company-name{font-size:20px;font-weight:700;color:{{ user.brand_color or '#7c3aed' }}}.period{text-align:right;font-size:14px;color:#64748b}.period strong{font-size:16px;color:#1e293b;display:block}.info-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:24px;padding:16px;background:#f8fafc;border-radius:10px}.info-item{font-size:13px}.info-item .label{color:#64748b;font-weight:500}.info-item .value{color:#1e293b;font-weight:600}.earn-ded{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:24px}.section h4{font-size:13px;font-weight:700;color:#7c3aed;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;padding-bottom:6px;border-bottom:2px solid #e9d5ff}.line{display:flex;justify-content:space-between;padding:6px 0;font-size:14px}.line .label{color:#64748b}.line .value{font-weight:600;color:#1e293b}.line.total{border-top:1px solid #e2e8f0;padding-top:10px;margin-top:6px}.line.total .label{font-weight:700;color:#374151}.line.total .value{color:#7c3aed}.net-pay{background:#f0fdf4;border:2px solid #22c55e;border-radius:12px;padding:20px;text-align:center;margin-bottom:20px}.net-pay .label{font-size:14px;color:#16a34a;font-weight:600;text-transform:uppercase}.net-pay .amount{font-size:32px;font-weight:700;color:#15803d;margin-top:4px}.employer-contrib{background:#f8fafc;border-radius:8px;padding:12px 16px;font-size:13px;color:#64748b}.employer-contrib strong{color:#374151}.flash{padding:12px 16px;border-radius:10px;font-size:14px;margin-bottom:16px}.flash.error{background:#fef2f2;color:#dc2626;border:1px solid #fecaca}
+    </style>
+</head>
+<body>
+<div class="topbar">
+    <h1>Payslip<span>Snap</span></h1>
+    <div class="topbar-right">
+        <a href="/payslips?month={{ slip.month }}&year={{ slip.year }}">← Back</a>
+        <a href="/payslip/{{ slip.id }}/pdf" class="primary">⬇ Download PDF</a>
+    </div>
+</div>
+<div class="main">
+    {% with messages = get_flashed_messages(with_categories=true) %}{% for cat, msg in messages %}<div class="flash {{ cat }}">{{ msg }}</div>{% endfor %}{% endwith %}
+
+    <div class="payslip-card">
+        <div class="company-row">
+            <div>
+                {% if user.logo_data %}<img src="{{ user.logo_data }}" style="max-height:40px;margin-bottom:6px"><br>{% endif %}
+                <span class="company-name">{{ user.company_name or 'Company' }}</span>
+                {% if user.company_address %}<div style="font-size:12px;color:#94a3b8">{{ user.company_address }}</div>{% endif %}
+            </div>
+            <div class="period">
+                <strong>{{ month_name }} {{ slip.year }}</strong>
+                Payslip
+            </div>
+        </div>
+
+        <div class="info-grid">
+            <div class="info-item"><span class="label">Employee: </span><span class="value">{{ slip.emp_name }}</span></div>
+            <div class="info-item"><span class="label">Code: </span><span class="value">{{ slip.emp_code or '-' }}</span></div>
+            <div class="info-item"><span class="label">Department: </span><span class="value">{{ slip.department or '-' }}</span></div>
+            <div class="info-item"><span class="label">Designation: </span><span class="value">{{ slip.designation or '-' }}</span></div>
+            <div class="info-item"><span class="label">PAN: </span><span class="value">{{ slip.emp_pan or '-' }}</span></div>
+            <div class="info-item"><span class="label">UAN: </span><span class="value">{{ slip.uan_number or '-' }}</span></div>
+            <div class="info-item"><span class="label">Bank: </span><span class="value">{{ slip.bank_name or '-' }} {{ slip.bank_account or '' }}</span></div>
+            <div class="info-item"><span class="label">Days Worked: </span><span class="value">{{ slip.days_worked }} / {{ slip.days_in_month }} {% if slip.lop_days > 0 %}({{ slip.lop_days }} LOP){% endif %}</span></div>
+        </div>
+
+        <div class="earn-ded">
+            <div class="section">
+                <h4>Earnings</h4>
+                <div class="line"><span class="label">Basic</span><span class="value">Rs.{{ "{:,.2f}".format(slip.basic) }}</span></div>
+                <div class="line"><span class="label">HRA</span><span class="value">Rs.{{ "{:,.2f}".format(slip.hra) }}</span></div>
+                {% if slip.da > 0 %}<div class="line"><span class="label">DA</span><span class="value">Rs.{{ "{:,.2f}".format(slip.da) }}</span></div>{% endif %}
+                <div class="line"><span class="label">Special Allowance</span><span class="value">Rs.{{ "{:,.2f}".format(slip.special_allowance) }}</span></div>
+                {% if slip.other_earnings > 0 %}<div class="line"><span class="label">Other Earnings</span><span class="value">Rs.{{ "{:,.2f}".format(slip.other_earnings) }}</span></div>{% endif %}
+                <div class="line total"><span class="label">Gross Earnings</span><span class="value">Rs.{{ "{:,.2f}".format(slip.gross_earnings) }}</span></div>
+            </div>
+            <div class="section">
+                <h4>Deductions</h4>
+                {% if slip.pf_employee > 0 %}<div class="line"><span class="label">PF (Employee)</span><span class="value">Rs.{{ "{:,.2f}".format(slip.pf_employee) }}</span></div>{% endif %}
+                {% if slip.esi_employee > 0 %}<div class="line"><span class="label">ESI (Employee)</span><span class="value">Rs.{{ "{:,.2f}".format(slip.esi_employee) }}</span></div>{% endif %}
+                {% if slip.professional_tax > 0 %}<div class="line"><span class="label">Professional Tax</span><span class="value">Rs.{{ "{:,.2f}".format(slip.professional_tax) }}</span></div>{% endif %}
+                {% if slip.tds > 0 %}<div class="line"><span class="label">TDS / Income Tax</span><span class="value">Rs.{{ "{:,.2f}".format(slip.tds) }}</span></div>{% endif %}
+                {% if slip.other_deductions > 0 %}<div class="line"><span class="label">Other Deductions</span><span class="value">Rs.{{ "{:,.2f}".format(slip.other_deductions) }}</span></div>{% endif %}
+                <div class="line total"><span class="label">Total Deductions</span><span class="value">Rs.{{ "{:,.2f}".format(slip.total_deductions) }}</span></div>
+            </div>
+        </div>
+
+        <div class="net-pay">
+            <div class="label">Net Pay</div>
+            <div class="amount">Rs.{{ "{:,.2f}".format(slip.net_pay) }}</div>
+        </div>
+
+        <div class="employer-contrib">
+            <strong>Employer Contributions</strong> (not deducted from salary):
+            PF: Rs.{{ "{:,.2f}".format(slip.pf_employer) }}
+            {% if slip.esi_employer > 0 %} | ESI: Rs.{{ "{:,.2f}".format(slip.esi_employer) }}{% endif %}
+        </div>
+    </div>
+</div>
+</body></html>

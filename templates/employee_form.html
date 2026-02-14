@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PayslipSnap — {{ 'Edit' if employee else 'Add' }} Employee</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        *{margin:0;padding:0;box-sizing:border-box}body{font-family:'Inter',sans-serif;background:#f0f4f8;min-height:100vh}.topbar{background:#fff;border-bottom:1px solid #e2e8f0;padding:14px 24px;display:flex;align-items:center;justify-content:space-between}.topbar h1{font-size:20px;font-weight:700;color:#1e293b}.topbar h1 span{color:#7c3aed}.topbar a{font-size:13px;color:#64748b;text-decoration:none;padding:8px 14px;border-radius:8px}.main{max-width:800px;margin:0 auto;padding:24px}h2{font-size:22px;font-weight:700;color:#1e293b;margin-bottom:20px}.card{background:#fff;border-radius:12px;padding:24px;box-shadow:0 1px 3px rgba(0,0,0,.06);margin-bottom:20px}.card h3{font-size:15px;font-weight:700;color:#374151;margin-bottom:16px;padding-bottom:10px;border-bottom:1px solid #f1f5f9}.row{display:grid;grid-template-columns:1fr 1fr;gap:16px}.row-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}.form-group{margin-bottom:16px}.form-group label{display:block;font-size:13px;font-weight:600;color:#374151;margin-bottom:5px}.form-group input,.form-group select,.form-group textarea{width:100%;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;font-family:'Inter',sans-serif}.form-group input:focus,.form-group select:focus{outline:none;border-color:#7c3aed;box-shadow:0 0 0 3px rgba(124,58,237,.1)}.hint{font-size:12px;color:#94a3b8;margin-top:3px}.toggle{display:flex;align-items:center;gap:8px;margin-bottom:12px}.toggle input[type=checkbox]{width:18px;height:18px;accent-color:#7c3aed}.toggle label{font-size:14px;color:#374151;font-weight:500}.btn{padding:13px 28px;background:#7c3aed;color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif}.btn:hover{background:#6d28d9}.btn-secondary{background:#f1f5f9;color:#374151}.btn-secondary:hover{background:#e2e8f0}.actions{display:flex;justify-content:flex-end;gap:12px}.ctc-preview{background:#faf5ff;border:1px solid #e9d5ff;border-radius:10px;padding:16px;margin-top:12px;font-size:13px;color:#6b21a8}.ctc-preview strong{font-size:16px}
+        @media(max-width:768px){.row,.row-3{grid-template-columns:1fr}}
+    </style>
+</head>
+<body>
+<div class="topbar"><h1>Payslip<span>Snap</span></h1><a href="/employees">← Employees</a></div>
+<div class="main">
+    <h2>{{ 'Edit' if employee else 'Add New' }} Employee</h2>
+    <form method="POST">
+        <div class="card">
+            <h3>Personal Details</h3>
+            <div class="row">
+                <div class="form-group"><label>Employee Code</label><input type="text" name="emp_code" value="{{ employee.emp_code or '' if employee else '' }}" placeholder="EMP001"></div>
+                <div class="form-group"><label>Full Name *</label><input type="text" name="name" value="{{ employee.name or '' if employee else '' }}" required placeholder="Full name"></div>
+            </div>
+            <div class="row">
+                <div class="form-group"><label>Email</label><input type="email" name="email" value="{{ employee.email or '' if employee else '' }}" placeholder="employee@company.com"></div>
+                <div class="form-group"><label>Phone</label><input type="text" name="phone" value="{{ employee.phone or '' if employee else '' }}" placeholder="+91 98765 43210"></div>
+            </div>
+            <div class="row-3">
+                <div class="form-group"><label>Department</label><input type="text" name="department" value="{{ employee.department or '' if employee else '' }}" placeholder="Engineering"></div>
+                <div class="form-group"><label>Designation</label><input type="text" name="designation" value="{{ employee.designation or '' if employee else '' }}" placeholder="Software Engineer"></div>
+                <div class="form-group"><label>Date of Joining</label><input type="date" name="date_of_joining" value="{{ employee.date_of_joining or '' if employee else '' }}"></div>
+            </div>
+            {% if employee %}
+            <div class="form-group"><label>Status</label>
+                <select name="status"><option value="active" {% if employee.status=='active' %}selected{% endif %}>Active</option><option value="inactive" {% if employee.status=='inactive' %}selected{% endif %}>Inactive</option></select>
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="card">
+            <h3>Statutory Details</h3>
+            <div class="row-3">
+                <div class="form-group"><label>PAN Number</label><input type="text" name="pan_number" value="{{ employee.pan_number or '' if employee else '' }}" placeholder="ABCDE1234F" style="text-transform:uppercase"></div>
+                <div class="form-group"><label>UAN (PF)</label><input type="text" name="uan_number" value="{{ employee.uan_number or '' if employee else '' }}" placeholder="1001234567890"></div>
+                <div class="form-group"><label>ESI Number</label><input type="text" name="esi_number" value="{{ employee.esi_number or '' if employee else '' }}" placeholder="If applicable"></div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>Bank Details</h3>
+            <div class="row-3">
+                <div class="form-group"><label>Bank Name</label><input type="text" name="bank_name" value="{{ employee.bank_name or '' if employee else '' }}" placeholder="HDFC Bank"></div>
+                <div class="form-group"><label>Account Number</label><input type="text" name="bank_account" value="{{ employee.bank_account or '' if employee else '' }}" placeholder="1234567890"></div>
+                <div class="form-group"><label>IFSC Code</label><input type="text" name="bank_ifsc" value="{{ employee.bank_ifsc or '' if employee else '' }}" placeholder="HDFC0001234" style="text-transform:uppercase"></div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>Salary Structure</h3>
+            <div class="row">
+                <div class="form-group">
+                    <label>Annual CTC (Rs.) *</label>
+                    <input type="number" name="ctc_annual" id="ctcInput" value="{{ employee.ctc_annual or '' if employee else '' }}" placeholder="e.g. 600000" min="0" step="1000" onchange="calcPreview()">
+                    <div class="hint">Cost to Company per year</div>
+                </div>
+                <div class="form-group">
+                    <label>Tax Regime</label>
+                    <select name="tax_regime">
+                        <option value="new" {% if employee and employee.tax_regime=='new' %}selected{% endif %}>New Regime (FY 2025-26)</option>
+                        <option value="old" {% if employee and employee.tax_regime=='old' %}selected{% endif %}>Old Regime</option>
+                    </select>
+                    <div class="hint">New regime: lower rates, fewer deductions</div>
+                </div>
+            </div>
+            <div class="row-3">
+                <div class="form-group">
+                    <label>Basic (% of CTC)</label>
+                    <input type="number" name="basic_percent" id="basicPct" value="{{ employee.basic_percent if employee else 40 }}" min="20" max="60" step="1" onchange="calcPreview()">
+                    <div class="hint">Usually 40-50%</div>
+                </div>
+                <div class="form-group">
+                    <label>HRA (% of Basic)</label>
+                    <input type="number" name="hra_percent" id="hraPct" value="{{ employee.hra_percent if employee else 50 }}" min="0" max="100" step="1" onchange="calcPreview()">
+                    <div class="hint">40% non-metro, 50% metro</div>
+                </div>
+                <div class="form-group">
+                    <label>DA (Fixed Monthly Rs.)</label>
+                    <input type="number" name="da_amount" id="daAmt" value="{{ employee.da_amount if employee else 0 }}" min="0" step="100" onchange="calcPreview()">
+                    <div class="hint">Dearness Allowance (if any)</div>
+                </div>
+            </div>
+
+            <div style="display:flex;flex-wrap:wrap;gap:20px;margin-top:8px">
+                <div class="toggle"><input type="checkbox" name="pf_applicable" id="pfCheck" {% if not employee or employee.pf_applicable %}checked{% endif %} onchange="calcPreview()"><label for="pfCheck">PF Applicable (12% of Basic)</label></div>
+                <div class="toggle"><input type="checkbox" name="esi_applicable" id="esiCheck" {% if employee and employee.esi_applicable %}checked{% endif %}><label for="esiCheck">ESI Applicable (Gross < Rs.21,000)</label></div>
+                <div class="toggle"><input type="checkbox" name="pt_applicable" id="ptCheck" {% if not employee or employee.pt_applicable %}checked{% endif %}><label for="ptCheck">Professional Tax</label></div>
+            </div>
+
+            <div class="form-group" style="max-width:250px;margin-top:8px">
+                <label>PT State</label>
+                <select name="pt_state">
+                    {% for s in ['Maharashtra','Karnataka','Tamil Nadu','Telangana','West Bengal','Gujarat','Andhra Pradesh','Kerala','Rajasthan','Madhya Pradesh'] %}
+                    <option {% if employee and employee.pt_state==s %}selected{% endif %}>{{ s }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="ctc-preview" id="ctcPreview" style="display:none">
+                <strong>Monthly Breakdown</strong><br>
+                <span id="previewText"></span>
+            </div>
+        </div>
+
+        <div class="actions">
+            <a href="/employees" class="btn btn-secondary" style="text-decoration:none">Cancel</a>
+            <button type="submit" class="btn">{{ 'Update' if employee else 'Add' }} Employee</button>
+        </div>
+    </form>
+</div>
+<script>
+function calcPreview() {
+    const ctc = parseFloat(document.getElementById('ctcInput').value) || 0;
+    if (ctc === 0) { document.getElementById('ctcPreview').style.display='none'; return; }
+    const monthly = ctc / 12;
+    const basicPct = parseFloat(document.getElementById('basicPct').value) / 100;
+    const hraPct = parseFloat(document.getElementById('hraPct').value) / 100;
+    const da = parseFloat(document.getElementById('daAmt').value) || 0;
+    const basic = monthly * basicPct;
+    const hra = basic * hraPct;
+    const pfEr = Math.min(basic, 15000) * 0.12;
+    const special = monthly - basic - hra - da - pfEr;
+    const pfEe = document.getElementById('pfCheck').checked ? Math.min(basic, 15000) * 0.12 : 0;
+    const gross = basic + hra + da + Math.max(0, special);
+    const net = gross - pfEe;
+    const el = document.getElementById('ctcPreview');
+    el.style.display = 'block';
+    document.getElementById('previewText').innerHTML =
+        `Basic: Rs.${basic.toFixed(0)} | HRA: Rs.${hra.toFixed(0)} | DA: Rs.${da.toFixed(0)} | Special: Rs.${Math.max(0,special).toFixed(0)}<br>` +
+        `Gross: Rs.${gross.toFixed(0)} | PF(EE): Rs.${pfEe.toFixed(0)} | PF(ER): Rs.${pfEr.toFixed(0)}<br>` +
+        `<strong>Approx Net/month: Rs.${net.toFixed(0)}</strong> (before TDS & PT)`;
+}
+calcPreview();
+</script>
+</body></html>
