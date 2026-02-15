@@ -1202,3 +1202,49 @@ def seed_test_data():
 
     conn.commit(); conn.close()
     return jsonify({'success': True, 'company': 'Bloom Studio', 'employees': len(employees), 'payslips': len(payslips)})
+
+# --- Demo Setup ---
+@app.route('/api/demo-setup', methods=['POST'])
+def demo_setup():
+    secret = request.headers.get('X-Demo-Secret', '')
+    if secret != 'snapsuite-demo-2026': return jsonify({'error': 'Unauthorized'}), 403
+    conn = get_db(); cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    demo_email = 'demo@snapsuite.app'
+    cur.execute('SELECT * FROM users WHERE email=%s', (demo_email,))
+    user = cur.fetchone()
+    if not user:
+        cur.execute("""INSERT INTO users (email,password_hash,company_name,is_superadmin)
+                       VALUES (%s,%s,'Bloom Studio',TRUE) RETURNING *""",
+                   (demo_email, hash_pw('demo123')))
+        user = cur.fetchone()
+        conn.commit()
+    uid = user['id']
+    cur.execute('SELECT COUNT(*) as cnt FROM employees WHERE user_id=%s', (uid,))
+    if cur.fetchone()['cnt'] == 0:
+        emps = [
+            ('BLM-001','Arjun Nair','arjun@bloomstudio.in','Design','Senior Designer','2023-06-15',840000),
+            ('BLM-002','Sneha Patel','sneha@bloomstudio.in','Development','Full Stack Developer','2024-01-10',960000),
+            ('BLM-003','Karthik Reddy','karthik@bloomstudio.in','Design','Junior Designer','2025-03-01',480000),
+        ]
+        eids = []
+        for e in emps:
+            cur.execute("""INSERT INTO employees (user_id,emp_code,name,email,department,designation,date_of_joining,
+                           ctc_annual,basic_percent,hra_percent,payroll_country)
+                           VALUES (%s,%s,%s,%s,%s,%s,%s,%s,40,50,'IN') RETURNING id""",
+                       (uid,e[0],e[1],e[2],e[3],e[4],e[5],e[6]))
+            eids.append(cur.fetchone()['id'])
+        slips = [
+            (eids[0],1,2026,28000,14000,28000,70000,1800,1800,0,0,200,5833,9633,60367),
+            (eids[1],1,2026,32000,16000,32000,80000,1800,1800,0,0,200,6667,10467,69533),
+            (eids[2],1,2026,16000,8000,16000,40000,1800,1800,780,780,200,1667,7027,32973),
+        ]
+        for s in slips:
+            cur.execute("""INSERT INTO payslips (user_id,employee_id,month,year,days_in_month,days_worked,lop_days,
+                           basic,hra,da,special_allowance,other_earnings,gross_earnings,
+                           pf_employee,pf_employer,esi_employee,esi_employer,professional_tax,tds,
+                           total_deductions,net_pay,status,company_name)
+                           VALUES (%s,%s,%s,%s,30,30,0,%s,%s,0,%s,0,%s,%s,%s,%s,%s,%s,%s,%s,%s,'final','Bloom Studio')
+                           ON CONFLICT DO NOTHING""",
+                       (uid,s[0],s[1],s[2],s[3],s[4],s[5],s[6],s[7],s[8],s[9],s[10],s[11],s[12],s[13],s[14]))
+    conn.commit(); conn.close()
+    return jsonify({'success': True, 'app': 'PayslipSnap'})
