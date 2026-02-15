@@ -1144,3 +1144,52 @@ def extract_brand_color(img_bytes):
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=True)
+
+# --- Seed Test Data ---
+@app.route('/api/seed-test-data', methods=['POST'])
+def seed_test_data():
+    api_key = request.headers.get('X-API-Key', '')
+    if not api_key: return jsonify({'error': 'API key required'}), 401
+    conn = get_db(); cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    cur.execute('SELECT * FROM users WHERE email=%s', (api_key,))
+    user = cur.fetchone()
+    if not user: conn.close(); return jsonify({'error': 'Invalid API key'}), 401
+    uid = user['id']
+
+    employees = [
+        ('BLM-001','Arjun Nair','arjun@bloomstudio.in','9876543210','Design','Senior Designer',
+         '2023-06-15','ABCPN1234A','100123456789','',840000,40,50,0,0,'IN'),
+        ('BLM-002','Sneha Patel','sneha@bloomstudio.in','9876500001','Development','Full Stack Developer',
+         '2024-01-10','DEFPN5678B','100987654321','',960000,40,50,0,0,'IN'),
+        ('BLM-003','Karthik Reddy','karthik@bloomstudio.in','9812345678','Design','Junior Designer',
+         '2025-03-01','GHIPN9012C','100456789012','',480000,40,50,0,0,'IN'),
+    ]
+    emp_ids = []
+    for e in employees:
+        cur.execute("""INSERT INTO employees (user_id,emp_code,name,email,phone,department,designation,
+                       date_of_joining,pan_number,uan_number,esi_number,ctc_annual,basic_percent,hra_percent,
+                       da_amount,special_allowance,payroll_country)
+                       VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id""",
+                   (uid,e[0],e[1],e[2],e[3],e[4],e[5],e[6],e[7],e[8],e[9],e[10],e[11],e[12],e[13],e[14],e[15]))
+        emp_ids.append(cur.fetchone()['id'])
+
+    # Generate payslips for Jan 2026
+    payslips = [
+        # Arjun: CTC 8.4L → monthly ~70K
+        (emp_ids[0], 1, 2026, 30, 30, 0, 28000, 14000, 0, 28000, 0, 70000, 1800, 1800, 0, 0, 200, 5833, 0, '', 9633, 60367, 'final'),
+        # Sneha: CTC 9.6L → monthly ~80K
+        (emp_ids[1], 1, 2026, 30, 30, 0, 32000, 16000, 0, 32000, 0, 80000, 1800, 1800, 0, 0, 200, 6667, 0, '', 10467, 69533, 'final'),
+        # Karthik: CTC 4.8L → monthly ~40K
+        (emp_ids[2], 1, 2026, 30, 30, 0, 16000, 8000, 0, 16000, 0, 40000, 1800, 1800, 780, 780, 200, 1667, 0, '', 7027, 32973, 'final'),
+    ]
+    for p in payslips:
+        cur.execute("""INSERT INTO payslips (user_id,employee_id,month,year,days_in_month,days_worked,lop_days,
+                       basic,hra,da,special_allowance,other_earnings,gross_earnings,
+                       pf_employee,pf_employer,esi_employee,esi_employer,professional_tax,tds,
+                       other_deductions,other_deductions_desc,total_deductions,net_pay,status)
+                       VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                       ON CONFLICT DO NOTHING""",
+                   (uid,)+p)
+
+    conn.commit(); conn.close()
+    return jsonify({'success': True, 'company': 'Bloom Studio', 'employees': len(employees), 'payslips': len(payslips)})
