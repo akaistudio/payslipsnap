@@ -115,6 +115,7 @@ def init_db():
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_superadmin BOOLEAN DEFAULT FALSE",
         "UPDATE users SET is_superadmin = TRUE WHERE id = (SELECT MIN(id) FROM users)",
         "ALTER TABLE employees ADD COLUMN IF NOT EXISTS payroll_country TEXT DEFAULT 'IN'",
+        "ALTER TABLE payslips ADD COLUMN IF NOT EXISTS company_name TEXT DEFAULT ''",
     ]
     for m in migrations:
         try:
@@ -1106,11 +1107,19 @@ def api_payroll():
         return jsonify({'error': 'Invalid'}), 401
     month = request.args.get('month')
     year = request.args.get('year')
+    company_name = request.args.get('company_name', '')
     q = 'SELECT p.*, e.name as emp_name FROM payslips p JOIN employees e ON p.employee_id=e.id WHERE p.user_id=%s'
     params = [user['id']]
     if month and year:
         q += ' AND p.month=%s AND p.year=%s'
         params.extend([month, year])
+    if company_name:
+        user_company = user.get('company_name', '') or ''
+        if user_company.lower().strip() == company_name.lower().strip():
+            q += " AND (LOWER(p.company_name)=LOWER(%s) OR p.company_name IS NULL OR p.company_name='')"
+        else:
+            q += ' AND LOWER(p.company_name)=LOWER(%s)'
+        params.append(company_name)
     cur.execute(q + ' ORDER BY p.year DESC, p.month DESC', params)
     slips = cur.fetchall()
     conn.close()
@@ -1186,8 +1195,8 @@ def seed_test_data():
         cur.execute("""INSERT INTO payslips (user_id,employee_id,month,year,days_in_month,days_worked,lop_days,
                        basic,hra,da,special_allowance,other_earnings,gross_earnings,
                        pf_employee,pf_employer,esi_employee,esi_employer,professional_tax,tds,
-                       other_deductions,other_deductions_desc,total_deductions,net_pay,status)
-                       VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                       other_deductions,other_deductions_desc,total_deductions,net_pay,status,company_name)
+                       VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'Bloom Studio')
                        ON CONFLICT DO NOTHING""",
                    (uid,)+p)
 
