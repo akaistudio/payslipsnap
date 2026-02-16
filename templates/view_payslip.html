@@ -46,21 +46,28 @@
         <div class="earn-ded">
             <div class="section">
                 <h4>Earnings</h4>
-                {% if slip.payroll_country == 'CA' %}
-                <div class="line"><span class="label">Gross Salary</span><span class="value">C${{ "{:,.2f}".format(slip.basic) }}</span></div>
+                {% if slip.payroll_country in ['CA', 'US', 'UK', 'EU'] %}
+                {% set curr_map = {'CA':'C$','US':'$','UK':'£','EU':'€'} %}
+                {% set curr = curr_map.get(slip.payroll_country, '$') %}
+                <div class="line"><span class="label">Gross Salary</span><span class="value">{{ curr }}{{ "{:,.2f}".format(slip.basic) }}</span></div>
                 {% else %}
+                {% set curr = 'Rs.' %}
                 <div class="line"><span class="label">Basic</span><span class="value">Rs.{{ "{:,.2f}".format(slip.basic) }}</span></div>
                 <div class="line"><span class="label">HRA</span><span class="value">Rs.{{ "{:,.2f}".format(slip.hra) }}</span></div>
                 {% if slip.da > 0 %}<div class="line"><span class="label">DA</span><span class="value">Rs.{{ "{:,.2f}".format(slip.da) }}</span></div>{% endif %}
                 <div class="line"><span class="label">Special Allowance</span><span class="value">Rs.{{ "{:,.2f}".format(slip.special_allowance) }}</span></div>
                 {% endif %}
-                {% set curr = 'C$' if slip.payroll_country == 'CA' else 'Rs.' %}
                 {% if slip.other_earnings > 0 %}<div class="line"><span class="label">Other Earnings</span><span class="value">{{ curr }}{{ "{:,.2f}".format(slip.other_earnings) }}</span></div>{% endif %}
                 <div class="line total"><span class="label">Gross Earnings</span><span class="value">{{ curr }}{{ "{:,.2f}".format(slip.gross_earnings) }}</span></div>
             </div>
             <div class="section">
                 <h4>Deductions</h4>
-                {% if slip.payroll_country == 'CA' %}
+                {% if slip.payroll_country in ['US', 'UK', 'EU'] %}
+                {% if slip.pf_employee > 0 %}<div class="line"><span class="label">{{ slip.custom_tax1_label or 'Tax 1' }} ({{ slip.custom_tax1_rate or 0 }}%)</span><span class="value">{{ curr }}{{ "{:,.2f}".format(slip.pf_employee) }}</span></div>{% endif %}
+                {% if slip.esi_employee > 0 %}<div class="line"><span class="label">{{ slip.custom_tax2_label or 'Tax 2' }} ({{ slip.custom_tax2_rate or 0 }}%)</span><span class="value">{{ curr }}{{ "{:,.2f}".format(slip.esi_employee) }}</span></div>{% endif %}
+                {% if slip.professional_tax > 0 %}<div class="line"><span class="label">{{ slip.custom_tax3_label or 'Tax 3' }} ({{ slip.custom_tax3_rate or 0 }}%)</span><span class="value">{{ curr }}{{ "{:,.2f}".format(slip.professional_tax) }}</span></div>{% endif %}
+                {% if slip.tds > 0 %}<div class="line"><span class="label">{{ slip.custom_tax4_label or 'Tax 4' }} ({{ slip.custom_tax4_rate or 0 }}%)</span><span class="value">{{ curr }}{{ "{:,.2f}".format(slip.tds) }}</span></div>{% endif %}
+                {% elif slip.payroll_country == 'CA' %}
                 {% if slip.pf_employee > 0 %}<div class="line"><span class="label">CPP (Employee)</span><span class="value">C${{ "{:,.2f}".format(slip.pf_employee) }}</span></div>{% endif %}
                 {% if slip.esi_employee > 0 %}<div class="line"><span class="label">EI (Employee)</span><span class="value">C${{ "{:,.2f}".format(slip.esi_employee) }}</span></div>{% endif %}
                 {% if slip.professional_tax > 0 %}<div class="line"><span class="label">Provincial Tax</span><span class="value">C${{ "{:,.2f}".format(slip.professional_tax) }}</span></div>{% endif %}
@@ -81,6 +88,7 @@
             <div class="amount">{{ curr }}{{ "{:,.2f}".format(slip.net_pay) }}</div>
         </div>
 
+        {% if slip.payroll_country not in ['US', 'UK', 'EU'] %}
         <div class="employer-contrib">
             <strong>Employer Contributions</strong> (not deducted from salary):
             {% if slip.payroll_country == 'CA' %}
@@ -91,6 +99,7 @@
             {% if slip.esi_employer > 0 %} | ESI: Rs.{{ "{:,.2f}".format(slip.esi_employer) }}{% endif %}
             {% endif %}
         </div>
+        {% endif %}
     </div>
 </div>
 </body></html>

@@ -116,6 +116,17 @@ def init_db():
         "UPDATE users SET is_superadmin = TRUE WHERE id = (SELECT MIN(id) FROM users)",
         "ALTER TABLE employees ADD COLUMN IF NOT EXISTS payroll_country TEXT DEFAULT 'IN'",
         "ALTER TABLE payslips ADD COLUMN IF NOT EXISTS company_name TEXT DEFAULT ''",
+        # Simple payroll: custom tax labels & rates for US/UK/EU
+        "ALTER TABLE employees ADD COLUMN IF NOT EXISTS custom_tax1_label TEXT DEFAULT ''",
+        "ALTER TABLE employees ADD COLUMN IF NOT EXISTS custom_tax1_rate REAL DEFAULT 0",
+        "ALTER TABLE employees ADD COLUMN IF NOT EXISTS custom_tax2_label TEXT DEFAULT ''",
+        "ALTER TABLE employees ADD COLUMN IF NOT EXISTS custom_tax2_rate REAL DEFAULT 0",
+        "ALTER TABLE employees ADD COLUMN IF NOT EXISTS custom_tax3_label TEXT DEFAULT ''",
+        "ALTER TABLE employees ADD COLUMN IF NOT EXISTS custom_tax3_rate REAL DEFAULT 0",
+        "ALTER TABLE employees ADD COLUMN IF NOT EXISTS custom_tax4_label TEXT DEFAULT ''",
+        "ALTER TABLE employees ADD COLUMN IF NOT EXISTS custom_tax4_rate REAL DEFAULT 0",
+        # Store payroll_country on payslip for PDF rendering
+        "ALTER TABLE payslips ADD COLUMN IF NOT EXISTS payroll_country TEXT DEFAULT 'IN'",
     ]
     for m in migrations:
         try:
@@ -503,6 +514,56 @@ def calc_canadian_provincial_tax(annual_income, province):
         remaining -= amount
     return max(0, tax)
 
+
+# --- Simple Payroll (US/UK/EU) — user-defined tax percentages ---
+def calc_simple_payroll(employee, month, year, days_worked, lop_days, other_earnings=0, other_deductions=0):
+    """Calculate payroll using user-defined tax percentages applied to gross salary"""
+    import calendar
+    days_in_month = calendar.monthrange(year, month)[1]
+    annual = float(employee.get('ctc_annual', 0) or 0)
+    monthly_gross = annual / 12
+
+    # Pro-rate for LOP
+    if lop_days > 0 and days_in_month > 0:
+        monthly_gross = monthly_gross * days_worked / days_in_month
+
+    gross = monthly_gross + other_earnings
+
+    # Apply custom tax percentages
+    tax1_rate = float(employee.get('custom_tax1_rate', 0) or 0)
+    tax2_rate = float(employee.get('custom_tax2_rate', 0) or 0)
+    tax3_rate = float(employee.get('custom_tax3_rate', 0) or 0)
+    tax4_rate = float(employee.get('custom_tax4_rate', 0) or 0)
+
+    tax1_amt = round(gross * tax1_rate / 100, 2)
+    tax2_amt = round(gross * tax2_rate / 100, 2)
+    tax3_amt = round(gross * tax3_rate / 100, 2)
+    tax4_amt = round(gross * tax4_rate / 100, 2)
+
+    total_deductions = tax1_amt + tax2_amt + tax3_amt + tax4_amt + other_deductions
+    net_pay = gross - total_deductions
+
+    return {
+        'days_in_month': days_in_month,
+        'days_worked': days_worked,
+        'basic': round(gross, 2),       # For simple mode, basic = gross
+        'hra': 0,
+        'da': 0,
+        'special_allowance': 0,
+        'other_earnings': other_earnings,
+        'gross_earnings': round(gross, 2),
+        'pf_employee': tax1_amt,         # Reuse pf_employee slot for tax1
+        'pf_employer': 0,
+        'esi_employee': tax2_amt,        # Reuse esi_employee slot for tax2
+        'esi_employer': 0,
+        'professional_tax': tax3_amt,    # Reuse professional_tax slot for tax3
+        'tds': tax4_amt,                 # Reuse tds slot for tax4
+        'other_deductions': other_deductions,
+        'total_deductions': round(total_deductions, 2),
+        'net_pay': round(net_pay, 2),
+    }
+
+
 # --- Dashboard ---
 @app.route('/')
 @login_required
@@ -568,8 +629,10 @@ def add_employee():
                       designation, date_of_joining, pan_number, uan_number, esi_number,
                       bank_name, bank_account, bank_ifsc, ctc_annual, basic_percent,
                       hra_percent, da_amount, pf_applicable, esi_applicable, pt_applicable,
-                      pt_state, tax_regime, payroll_country)
-                      VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                      pt_state, tax_regime, payroll_country,
+                      custom_tax1_label, custom_tax1_rate, custom_tax2_label, custom_tax2_rate,
+                      custom_tax3_label, custom_tax3_rate, custom_tax4_label, custom_tax4_rate)
+                      VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                       RETURNING id''',
                    (user['id'], request.form.get('emp_code', ''),
                     request.form['name'], request.form.get('email', ''),
@@ -586,7 +649,15 @@ def add_employee():
                     request.form.get('pt_applicable') == 'on',
                     request.form.get('pt_state', 'Maharashtra'),
                     request.form.get('tax_regime', 'new'),
-                    request.form.get('payroll_country', 'IN')))
+                    request.form.get('payroll_country', 'IN'),
+                    request.form.get('custom_tax1_label', ''),
+                    float(request.form.get('custom_tax1_rate', 0) or 0),
+                    request.form.get('custom_tax2_label', ''),
+                    float(request.form.get('custom_tax2_rate', 0) or 0),
+                    request.form.get('custom_tax3_label', ''),
+                    float(request.form.get('custom_tax3_rate', 0) or 0),
+                    request.form.get('custom_tax4_label', ''),
+                    float(request.form.get('custom_tax4_rate', 0) or 0)))
         conn.close()
         flash(f'Employee {request.form["name"]} added!', 'success')
         return redirect(url_for('employees'))
@@ -612,7 +683,9 @@ def edit_employee(emp_id):
                        uan_number=%s, esi_number=%s, bank_name=%s, bank_account=%s,
                        bank_ifsc=%s, ctc_annual=%s, basic_percent=%s, hra_percent=%s,
                        da_amount=%s, pf_applicable=%s, esi_applicable=%s, pt_applicable=%s,
-                       pt_state=%s, tax_regime=%s, status=%s, payroll_country=%s
+                       pt_state=%s, tax_regime=%s, status=%s, payroll_country=%s,
+                       custom_tax1_label=%s, custom_tax1_rate=%s, custom_tax2_label=%s, custom_tax2_rate=%s,
+                       custom_tax3_label=%s, custom_tax3_rate=%s, custom_tax4_label=%s, custom_tax4_rate=%s
                        WHERE id=%s AND user_id=%s''',
                     (request.form.get('emp_code', ''), request.form['name'],
                      request.form.get('email', ''), request.form.get('phone', ''),
@@ -632,6 +705,14 @@ def edit_employee(emp_id):
                      request.form.get('tax_regime', 'new'),
                      request.form.get('status', 'active'),
                      request.form.get('payroll_country', 'IN'),
+                     request.form.get('custom_tax1_label', ''),
+                     float(request.form.get('custom_tax1_rate', 0) or 0),
+                     request.form.get('custom_tax2_label', ''),
+                     float(request.form.get('custom_tax2_rate', 0) or 0),
+                     request.form.get('custom_tax3_label', ''),
+                     float(request.form.get('custom_tax3_rate', 0) or 0),
+                     request.form.get('custom_tax4_label', ''),
+                     float(request.form.get('custom_tax4_rate', 0) or 0),
                      emp_id, user['id']))
         conn.close()
         flash(f'Employee updated!', 'success')
@@ -681,6 +762,8 @@ def generate_payslips():
             country = emp.get('payroll_country', 'IN')
             if country == 'CA':
                 calc = calc_canadian_payroll(emp, month, year, days_worked, lop, other_earn, other_ded)
+            elif country in ('US', 'UK', 'EU'):
+                calc = calc_simple_payroll(emp, month, year, days_worked, lop, other_earn, other_ded)
             else:
                 calc = calc_indian_payroll(emp, month, year, days_worked, lop, other_earn, other_ded)
 
@@ -690,8 +773,8 @@ def generate_payslips():
                           special_allowance, other_earnings, gross_earnings,
                           pf_employee, pf_employer, esi_employee, esi_employer,
                           professional_tax, tds, other_deductions, total_deductions,
-                          net_pay, status)
-                          VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)''',
+                          net_pay, status, payroll_country)
+                          VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)''',
                         (user['id'], int(eid), month, year,
                          calc['days_in_month'], calc['days_worked'], lop,
                          calc['basic'], calc['hra'], calc['da'],
@@ -700,7 +783,7 @@ def generate_payslips():
                          calc['esi_employee'], calc['esi_employer'],
                          calc['professional_tax'], calc['tds'],
                          calc['other_deductions'], calc['total_deductions'],
-                         calc['net_pay'], 'generated'))
+                         calc['net_pay'], 'generated', country))
             generated += 1
 
         conn.close()
@@ -758,7 +841,9 @@ def view_payslip(slip_id):
     cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     cur.execute('''SELECT p.*, e.name as emp_name, e.emp_code, e.designation, e.department,
                   e.pan_number as emp_pan, e.uan_number, e.bank_name, e.bank_account,
-                  e.date_of_joining, e.payroll_country
+                  e.date_of_joining, e.payroll_country,
+                  e.custom_tax1_label, e.custom_tax2_label, e.custom_tax3_label, e.custom_tax4_label,
+                  e.custom_tax1_rate, e.custom_tax2_rate, e.custom_tax3_rate, e.custom_tax4_rate
                   FROM payslips p JOIN employees e ON p.employee_id = e.id
                   WHERE p.id=%s AND p.user_id=%s''', (slip_id, user['id']))
     slip = cur.fetchone()
@@ -778,7 +863,9 @@ def download_pdf(slip_id):
     cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     cur.execute('''SELECT p.*, e.name as emp_name, e.emp_code, e.designation, e.department,
                   e.pan_number as emp_pan, e.uan_number, e.bank_name, e.bank_account,
-                  e.date_of_joining, e.payroll_country
+                  e.date_of_joining, e.payroll_country,
+                  e.custom_tax1_label, e.custom_tax2_label, e.custom_tax3_label, e.custom_tax4_label,
+                  e.custom_tax1_rate, e.custom_tax2_rate, e.custom_tax3_rate, e.custom_tax4_rate
                   FROM payslips p JOIN employees e ON p.employee_id = e.id
                   WHERE p.id=%s AND p.user_id=%s''', (slip_id, user['id']))
     slip = cur.fetchone()
@@ -880,6 +967,27 @@ def generate_payslip_pdf(user, slip):
         id_label_1 = 'SIN'
         id_label_2 = 'CRA BN'
         employer_labels = f"CPP (Employer): C${float(slip.get('pf_employer', 0) or 0):,.2f}    |    EI (Employer): C${float(slip.get('esi_employer', 0) or 0):,.2f}"
+    elif country in ('US', 'UK', 'EU'):
+        curr_map = {'US': '$', 'UK': 'GBP ', 'EU': 'EUR '}
+        curr = curr_map.get(country, '$')
+        earn_labels = [('Gross Salary', slip.get('basic', 0))]
+        # Use custom tax labels from employee record
+        t1_label = slip.get('custom_tax1_label', '') or 'Tax 1'
+        t2_label = slip.get('custom_tax2_label', '') or 'Tax 2'
+        t3_label = slip.get('custom_tax3_label', '') or 'Tax 3'
+        t4_label = slip.get('custom_tax4_label', '') or 'Tax 4'
+        t1_rate = float(slip.get('custom_tax1_rate', 0) or 0)
+        t2_rate = float(slip.get('custom_tax2_rate', 0) or 0)
+        t3_rate = float(slip.get('custom_tax3_rate', 0) or 0)
+        t4_rate = float(slip.get('custom_tax4_rate', 0) or 0)
+        ded_labels = []
+        if t1_rate > 0: ded_labels.append((f"{t1_label} ({t1_rate}%)", slip.get('pf_employee', 0)))
+        if t2_rate > 0: ded_labels.append((f"{t2_label} ({t2_rate}%)", slip.get('esi_employee', 0)))
+        if t3_rate > 0: ded_labels.append((f"{t3_label} ({t3_rate}%)", slip.get('professional_tax', 0)))
+        if t4_rate > 0: ded_labels.append((f"{t4_label} ({t4_rate}%)", slip.get('tds', 0)))
+        id_label_1 = {'US': 'SSN', 'UK': 'NI No.', 'EU': 'Tax ID'}.get(country, 'ID')
+        id_label_2 = {'US': 'EIN', 'UK': 'PAYE Ref', 'EU': 'Employer ID'}.get(country, 'Ref')
+        employer_labels = ''
     else:
         curr = 'Rs.'
         earn_labels = [
