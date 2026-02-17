@@ -46,8 +46,8 @@
         <div class="earn-ded">
             <div class="section">
                 <h4>Earnings</h4>
-                {% if slip.payroll_country in ['CA', 'US', 'UK', 'EU'] %}
-                {% set curr_map = {'CA':'C$','US':'$','UK':'£','EU':'€'} %}
+                {% if slip.payroll_country in ['CA', 'US', 'UK', 'EU', 'MY'] %}
+                {% set curr_map = {'CA':'C$','US':'$','UK':'£','EU':'€','MY':'RM'} %}
                 {% set curr = curr_map.get(slip.payroll_country, '$') %}
                 <div class="line"><span class="label">Gross Salary</span><span class="value">{{ curr }}{{ "{:,.2f}".format(slip.basic) }}</span></div>
                 {% else %}
@@ -62,7 +62,7 @@
             </div>
             <div class="section">
                 <h4>Deductions</h4>
-                {% if slip.payroll_country in ['US', 'UK', 'EU'] %}
+                {% if slip.payroll_country in ['US', 'UK', 'EU', 'MY'] %}
                 {% if slip.pf_employee > 0 %}<div class="line"><span class="label">{{ slip.custom_tax1_label or 'Tax 1' }} ({{ slip.custom_tax1_rate or 0 }}%)</span><span class="value">{{ curr }}{{ "{:,.2f}".format(slip.pf_employee) }}</span></div>{% endif %}
                 {% if slip.esi_employee > 0 %}<div class="line"><span class="label">{{ slip.custom_tax2_label or 'Tax 2' }} ({{ slip.custom_tax2_rate or 0 }}%)</span><span class="value">{{ curr }}{{ "{:,.2f}".format(slip.esi_employee) }}</span></div>{% endif %}
                 {% if slip.professional_tax > 0 %}<div class="line"><span class="label">{{ slip.custom_tax3_label or 'Tax 3' }} ({{ slip.custom_tax3_rate or 0 }}%)</span><span class="value">{{ curr }}{{ "{:,.2f}".format(slip.professional_tax) }}</span></div>{% endif %}
@@ -88,7 +88,7 @@
             <div class="amount">{{ curr }}{{ "{:,.2f}".format(slip.net_pay) }}</div>
         </div>
 
-        {% if slip.payroll_country not in ['US', 'UK', 'EU'] %}
+        {% if slip.payroll_country not in ['US', 'UK', 'EU', 'MY'] %}
         <div class="employer-contrib">
             <strong>Employer Contributions</strong> (not deducted from salary):
             {% if slip.payroll_country == 'CA' %}

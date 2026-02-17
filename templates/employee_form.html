@@ -24,6 +24,7 @@
                         <option value="US" {% if employee and employee.payroll_country=='US' %}selected{% endif %}>🇺🇸 United States</option>
                         <option value="UK" {% if employee and employee.payroll_country=='UK' %}selected{% endif %}>🇬🇧 United Kingdom</option>
                         <option value="EU" {% if employee and employee.payroll_country=='EU' %}selected{% endif %}>🇪🇺 European Union</option>
+                        <option value="MY" {% if employee and employee.payroll_country=='MY' %}selected{% endif %}>🇲🇾 Malaysia</option>
                     </select>
                 </div>
                 <div class="form-group"><label>Employee Code</label><input type="text" name="emp_code" value="{{ employee.emp_code or '' if employee else '' }}" placeholder="EMP001"></div>
@@ -84,6 +85,11 @@
                 <div class="form-group"><label>Tax Identification Number</label><input type="text" name="pan_number" value="{{ employee.pan_number or '' if employee else '' }}" placeholder="Tax ID"></div>
                 <div class="form-group"><label>Social Security Number</label><input type="text" name="uan_number" value="{{ employee.uan_number or '' if employee else '' }}" placeholder="SS Number"></div>
                 <div class="form-group"><label>Country</label><input type="text" name="pt_state" value="{{ employee.pt_state or '' if employee else '' }}" placeholder="e.g. Germany, France"></div>
+            </div>
+            <div class="row-3 my-fields" style="display:none">
+                <div class="form-group"><label>IC Number (MyKad)</label><input type="text" name="pan_number" value="{{ employee.pan_number or '' if employee else '' }}" placeholder="e.g. 900101-14-1234"></div>
+                <div class="form-group"><label>EPF Number</label><input type="text" name="uan_number" value="{{ employee.uan_number or '' if employee else '' }}" placeholder="EPF member number"></div>
+                <div class="form-group"><label>SOCSO Number</label><input type="text" name="esi_number" value="{{ employee.esi_number or '' if employee else '' }}" placeholder="SOCSO/PERKESO number"></div>
             </div>
         </div>
 
@@ -212,15 +218,16 @@ function toggleCountry() {
     const country = document.getElementById('countrySelect').value;
     const isIndia = country === 'IN';
     const isCanada = country === 'CA';
-    const isSimple = ['US','UK','EU'].includes(country);
+    const isSimple = ['US','UK','EU','MY'].includes(country);
     document.querySelectorAll('.india-fields,.india-salary-fields,.india-hint,.india-state-select').forEach(e => e.style.display = isIndia ? '' : 'none');
     document.querySelectorAll('.canada-fields,.canada-hint').forEach(e => e.style.display = isCanada ? '' : 'none');
     document.querySelectorAll('.us-fields').forEach(e => e.style.display = country === 'US' ? '' : 'none');
     document.querySelectorAll('.uk-fields').forEach(e => e.style.display = country === 'UK' ? '' : 'none');
     document.querySelectorAll('.eu-fields').forEach(e => e.style.display = country === 'EU' ? '' : 'none');
+    document.querySelectorAll('.my-fields').forEach(e => e.style.display = country === 'MY' ? '' : 'none');
     document.querySelectorAll('.simple-salary-fields').forEach(e => e.style.display = isSimple ? '' : 'none');
-    const currLabels = {'IN':'(Rs.)','CA':'(C$)','US':'($)','UK':'(GBP)','EU':'(EUR)'};
-    const ctcLabels = {'IN':'Annual CTC','CA':'Annual Gross Salary','US':'Annual Gross Salary','UK':'Annual Gross Salary','EU':'Annual Gross Salary'};
+    const currLabels = {'IN':'(Rs.)','CA':'(C$)','US':'($)','UK':'(GBP)','EU':'(EUR)','MY':'(RM)'};
+    const ctcLabels = {'IN':'Annual CTC','CA':'Annual Gross Salary','US':'Annual Gross Salary','UK':'Annual Gross Salary','EU':'Annual Gross Salary','MY':'Annual Gross Salary'};
     document.querySelector('.ctc-label').textContent = ctcLabels[country] || 'Annual Gross Salary';
     document.querySelector('.curr-label').textContent = currLabels[country] || '($)';
     document.getElementById('taxRegime').closest('.form-group').style.display = isIndia ? '' : 'none';
@@ -229,7 +236,8 @@ function toggleCountry() {
         const presets = {
             'US': [['Federal Tax','22'],['State Tax','5'],['Social Security','6.2'],['Medicare','1.45']],
             'UK': [['Income Tax (PAYE)','20'],['National Insurance','12'],['',''],['','']],
-            'EU': [['Income Tax','25'],['Social Security','10'],['',''],['','']]
+            'EU': [['Income Tax','25'],['Social Security','10'],['',''],['','']],
+            'MY': [['EPF (KWSP)','11'],['SOCSO (PERKESO)','0.5'],['EIS','0.2'],['PCB (Tax)','10']]
         };
         const p = presets[country] || [];
         for (let i = 0; i < 4; i++) {
@@ -248,9 +256,9 @@ function calcPreview() {
     const el = document.getElementById('ctcPreview');
     el.style.display = 'block';
 
-    if (['US','UK','EU'].includes(country)) {
+    if (['US','UK','EU','MY'].includes(country)) {
         const monthly = ctc / 12;
-        const currMap = {'US':'$','UK':'GBP ','EU':'EUR '};
+        const currMap = {'US':'$','UK':'GBP ','EU':'EUR ','MY':'RM'};
         const c = currMap[country] || '$';
         let totalDed = 0;
         let lines = [];

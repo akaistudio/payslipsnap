@@ -762,7 +762,7 @@ def generate_payslips():
             country = emp.get('payroll_country', 'IN')
             if country == 'CA':
                 calc = calc_canadian_payroll(emp, month, year, days_worked, lop, other_earn, other_ded)
-            elif country in ('US', 'UK', 'EU'):
+            elif country in ('US', 'UK', 'EU', 'MY'):
                 calc = calc_simple_payroll(emp, month, year, days_worked, lop, other_earn, other_ded)
             else:
                 calc = calc_indian_payroll(emp, month, year, days_worked, lop, other_earn, other_ded)
@@ -967,8 +967,8 @@ def generate_payslip_pdf(user, slip):
         id_label_1 = 'SIN'
         id_label_2 = 'CRA BN'
         employer_labels = f"CPP (Employer): C${float(slip.get('pf_employer', 0) or 0):,.2f}    |    EI (Employer): C${float(slip.get('esi_employer', 0) or 0):,.2f}"
-    elif country in ('US', 'UK', 'EU'):
-        curr_map = {'US': '$', 'UK': 'GBP ', 'EU': 'EUR '}
+    elif country in ('US', 'UK', 'EU', 'MY'):
+        curr_map = {'US': '$', 'UK': 'GBP ', 'EU': 'EUR ', 'MY': 'RM'}
         curr = curr_map.get(country, '$')
         earn_labels = [('Gross Salary', slip.get('basic', 0))]
         # Use custom tax labels from employee record
@@ -985,8 +985,8 @@ def generate_payslip_pdf(user, slip):
         if t2_rate > 0: ded_labels.append((f"{t2_label} ({t2_rate}%)", slip.get('esi_employee', 0)))
         if t3_rate > 0: ded_labels.append((f"{t3_label} ({t3_rate}%)", slip.get('professional_tax', 0)))
         if t4_rate > 0: ded_labels.append((f"{t4_label} ({t4_rate}%)", slip.get('tds', 0)))
-        id_label_1 = {'US': 'SSN', 'UK': 'NI No.', 'EU': 'Tax ID'}.get(country, 'ID')
-        id_label_2 = {'US': 'EIN', 'UK': 'PAYE Ref', 'EU': 'Employer ID'}.get(country, 'Ref')
+        id_label_1 = {'US': 'SSN', 'UK': 'NI No.', 'EU': 'Tax ID', 'MY': 'IC No.'}.get(country, 'ID')
+        id_label_2 = {'US': 'EIN', 'UK': 'PAYE Ref', 'EU': 'Employer ID', 'MY': 'EPF No.'}.get(country, 'Ref')
         employer_labels = ''
     else:
         curr = 'Rs.'
