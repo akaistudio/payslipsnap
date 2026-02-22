@@ -709,8 +709,9 @@ def calc_simple_payroll(employee, month, year, days_worked, lop_days, other_earn
 
 # --- Dashboard ---
 @app.route('/')
-@login_required
 def dashboard():
+    if 'user_id' not in session:
+        return redirect('/welcome')
     user = get_user()
     conn = get_db()
     cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
