@@ -16,8 +16,8 @@ import psycopg2.extras
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'payslipsnap-prod-2026')
-app.permanent_session_lifetime = timedelta(days=30)
-app.config.update(SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SAMESITE='Lax')
+app.permanent_session_lifetime = timedelta(days=90)
+app.config.update(SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SAMESITE='Lax', PERMANENT_SESSION_LIFETIME=timedelta(days=90))
 
 # --- Database ---
 def get_db():
