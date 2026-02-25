@@ -1410,8 +1410,19 @@ def admin_dashboard():
                   LEFT JOIN payslips p ON u.id = p.user_id
                   GROUP BY u.id ORDER BY u.created_at DESC''')
     companies = cur.fetchall()
+    company_id = request.args.get('company_id')
+    company_items = []
+    selected_company = None
+    if company_id:
+        cur.execute('SELECT * FROM users WHERE id=%s', (company_id,))
+        selected_company = cur.fetchone()
+        cur.execute('''SELECT p.*, e.name as emp_name FROM payslips p
+                      JOIN employees e ON p.employee_id=e.id
+                      WHERE p.user_id=%s ORDER BY p.year DESC, p.month DESC''', (company_id,))
+        company_items = cur.fetchall()
     conn.close()
-    return render_template('admin.html', user=user, companies=companies)
+    return render_template('admin.html', user=user, companies=companies,
+                           company_items=company_items, selected_company=selected_company)
 
 # --- API for Varnam Suite ---
 @app.route('/api/payroll')
