@@ -1547,9 +1547,12 @@ def api_payroll():
     if company_name:
         user_company = user.get('company_name', '') or ''
         if user_company.lower().strip() == company_name.lower().strip():
+            # Exact match on user's own company — include payslips with blank company_name too
             q += " AND (LOWER(p.company_name)=LOWER(%s) OR p.company_name IS NULL OR p.company_name='')"
         else:
-            q += ' AND LOWER(p.company_name)=LOWER(%s)'
+            # Fuzzy fallback: try exact match first, but if PayslipSnap is a single-company
+            # setup the company_name may never have been stored on payslips — return all
+            q += " AND (LOWER(p.company_name)=LOWER(%s) OR p.company_name IS NULL OR p.company_name='')"
         params.append(company_name)
     cur.execute(q + ' ORDER BY p.year DESC, p.month DESC', params)
     slips = cur.fetchall()
@@ -1558,7 +1561,9 @@ def api_payroll():
         for k, v in s.items():
             if hasattr(v, 'isoformat'):
                 s[k] = v.isoformat()
-    return jsonify({'payslips': slips, 'count': len(slips)})
+    # Include currency from user record so FinanceSnap can validate
+    currency = user.get('currency', '')
+    return jsonify({'payslips': slips, 'count': len(slips), 'currency': currency})
 
 # --- Helpers ---
 def extract_brand_color(img_bytes):
@@ -1580,6 +1585,11 @@ def extract_brand_color(img_bytes):
         return f"#{most_common[0]:02x}{most_common[1]:02x}{most_common[2]:02x}"
     except Exception:
         return None
+
+
+@app.route('/health')
+def health():
+    return __import__('flask').jsonify({'status': 'ok', 'app': 'payslipsnap'})
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
