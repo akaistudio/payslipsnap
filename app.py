@@ -129,6 +129,10 @@ def init_db():
         "ALTER TABLE employees ADD COLUMN IF NOT EXISTS custom_tax4_rate REAL DEFAULT 0",
         # Store payroll_country on payslip for PDF rendering
         "ALTER TABLE payslips ADD COLUMN IF NOT EXISTS payroll_country TEXT DEFAULT 'IN'",
+        # Singapore CPF fields
+        "ALTER TABLE employees ADD COLUMN IF NOT EXISTS age INTEGER DEFAULT 30",
+        "ALTER TABLE employees ADD COLUMN IF NOT EXISTS residency_status TEXT DEFAULT 'citizen'",
+        "ALTER TABLE payslips ADD COLUMN IF NOT EXISTS residency_status TEXT DEFAULT 'citizen'",
     ]
     for m in migrations:
         try:
@@ -605,6 +609,76 @@ def calc_old_regime_tax(taxable):
         tax = 0
     return tax
 
+# --- Singapore Payroll Calculations ---
+# CPF rates: (age_ceiling, employee_rate, employer_rate)
+CPF_RATES = [
+    (55,  0.20,  0.17),
+    (60,  0.15,  0.15),
+    (65,  0.095, 0.115),
+    (70,  0.07,  0.09),
+    (999, 0.05,  0.075),
+]
+CPF_OW_CEILING = 6800.0   # Ordinary Wage ceiling (SGD/month)
+SDL_RATE       = 0.0025   # Skills Development Levy rate
+SDL_MIN        = 2.00
+SDL_MAX        = 11.25
+SDL_CAP_BASE   = 4500.0   # SDL computed on wages up to this amount
+
+def calc_singapore_payroll(employee, month, year, days_worked, lop_days, other_earnings=0, other_deductions=0):
+    """Calculate Singapore payroll: CPF (employee+employer), SDL, withholding tax."""
+    annual_salary = float(employee.get('ctc_annual', 0) or 0)
+    monthly_gross_full = annual_salary / 12
+    days_in_month = calendar.monthrange(year, month)[1]
+    ratio = days_worked / days_in_month if days_in_month > 0 else 1
+    gross = round(monthly_gross_full * ratio + other_earnings, 2)
+
+    age = int(employee.get('age', 30) or 30)
+    residency = employee.get('residency_status', 'citizen') or 'citizen'
+
+    cpf_employee = 0.0
+    cpf_employer = 0.0
+    withholding   = 0.0
+
+    if residency in ('citizen', 'pr'):
+        for age_ceil, emp_rate, er_rate in CPF_RATES:
+            if age < age_ceil:
+                cpf_base = min(gross, CPF_OW_CEILING)
+                cpf_employee = round(cpf_base * emp_rate, 2)
+                cpf_employer = round(cpf_base * er_rate, 2)
+                break
+    elif residency == 'non_resident':
+        withholding = round(gross * 0.15, 2)
+
+    # SDL — all employees, capped at SDL_CAP_BASE
+    sdl_base = min(gross, SDL_CAP_BASE)
+    sdl = max(SDL_MIN, min(SDL_MAX, round(sdl_base * SDL_RATE, 2)))
+
+    total_deductions = round(cpf_employee + withholding + other_deductions, 2)
+    net_pay          = round(gross - total_deductions, 2)
+    employer_cost    = round(gross + cpf_employer + sdl, 2)
+
+    return {
+        'basic':             round(gross, 2),
+        'hra':               0,
+        'da':                0,
+        'special_allowance': 0,
+        'other_earnings':    other_earnings,
+        'gross_earnings':    gross,
+        'pf_employee':       cpf_employee,
+        'pf_employer':       cpf_employer,
+        'esi_employee':      sdl,          # reuse esi_employee col for SDL display
+        'esi_employer':      0,
+        'professional_tax':  withholding,  # reuse professional_tax col for withholding
+        'tds':               0,
+        'other_deductions':  other_deductions,
+        'total_deductions':  total_deductions,
+        'net_pay':           net_pay,
+        'days_in_month':     days_in_month,
+        'days_worked':       days_worked,
+        'employer_cost':     employer_cost,
+        'residency_status':  residency,
+    }
+
 # --- Canadian Payroll Calculations ---
 def calc_canadian_payroll(employee, month, year, days_worked, lop_days, other_earnings=0, other_deductions=0):
     """Calculate Canadian payroll: CPP, EI, Federal + Provincial tax."""
@@ -834,8 +908,9 @@ def add_employee():
                       hra_percent, da_amount, pf_applicable, esi_applicable, pt_applicable,
                       pt_state, tax_regime, payroll_country,
                       custom_tax1_label, custom_tax1_rate, custom_tax2_label, custom_tax2_rate,
-                      custom_tax3_label, custom_tax3_rate, custom_tax4_label, custom_tax4_rate)
-                      VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                      custom_tax3_label, custom_tax3_rate, custom_tax4_label, custom_tax4_rate,
+                      age, residency_status)
+                      VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                       RETURNING id''',
                    (user['id'], request.form.get('emp_code', ''),
                     request.form['name'], request.form.get('email', ''),
@@ -860,7 +935,9 @@ def add_employee():
                     request.form.get('custom_tax3_label', ''),
                     float(request.form.get('custom_tax3_rate', 0) or 0),
                     request.form.get('custom_tax4_label', ''),
-                    float(request.form.get('custom_tax4_rate', 0) or 0)))
+                    float(request.form.get('custom_tax4_rate', 0) or 0),
+                    int(request.form.get('age', 30) or 30),
+                    request.form.get('residency_status', 'citizen')))
         conn.close()
         flash(f'Employee {request.form["name"]} added!', 'success')
         return redirect(url_for('employees'))
@@ -888,7 +965,8 @@ def edit_employee(emp_id):
                        da_amount=%s, pf_applicable=%s, esi_applicable=%s, pt_applicable=%s,
                        pt_state=%s, tax_regime=%s, status=%s, payroll_country=%s,
                        custom_tax1_label=%s, custom_tax1_rate=%s, custom_tax2_label=%s, custom_tax2_rate=%s,
-                       custom_tax3_label=%s, custom_tax3_rate=%s, custom_tax4_label=%s, custom_tax4_rate=%s
+                       custom_tax3_label=%s, custom_tax3_rate=%s, custom_tax4_label=%s, custom_tax4_rate=%s,
+                       age=%s, residency_status=%s
                        WHERE id=%s AND user_id=%s''',
                     (request.form.get('emp_code', ''), request.form['name'],
                      request.form.get('email', ''), request.form.get('phone', ''),
@@ -916,6 +994,8 @@ def edit_employee(emp_id):
                      float(request.form.get('custom_tax3_rate', 0) or 0),
                      request.form.get('custom_tax4_label', ''),
                      float(request.form.get('custom_tax4_rate', 0) or 0),
+                     int(request.form.get('age', 30) or 30),
+                     request.form.get('residency_status', 'citizen'),
                      emp_id, user['id']))
         conn.close()
         flash(f'Employee updated!', 'success')
@@ -963,7 +1043,9 @@ def generate_payslips():
 
             # Branch by country
             country = emp.get('payroll_country', 'IN')
-            if country == 'CA':
+            if country == 'SG':
+                calc = calc_singapore_payroll(emp, month, year, days_worked, lop, other_earn, other_ded)
+            elif country == 'CA':
                 calc = calc_canadian_payroll(emp, month, year, days_worked, lop, other_earn, other_ded)
             elif country in ('US', 'UK', 'EU', 'MY'):
                 calc = calc_simple_payroll(emp, month, year, days_worked, lop, other_earn, other_ded)
@@ -976,8 +1058,8 @@ def generate_payslips():
                           special_allowance, other_earnings, gross_earnings,
                           pf_employee, pf_employer, esi_employee, esi_employer,
                           professional_tax, tds, other_deductions, total_deductions,
-                          net_pay, status, payroll_country)
-                          VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)''',
+                          net_pay, status, payroll_country, residency_status)
+                          VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)''',
                         (user['id'], int(eid), month, year,
                          calc['days_in_month'], calc['days_worked'], lop,
                          calc['basic'], calc['hra'], calc['da'],
@@ -986,7 +1068,8 @@ def generate_payslips():
                          calc['esi_employee'], calc['esi_employer'],
                          calc['professional_tax'], calc['tds'],
                          calc['other_deductions'], calc['total_deductions'],
-                         calc['net_pay'], 'generated', country))
+                         calc['net_pay'], 'generated', country,
+                         calc.get('residency_status', 'citizen')))
             generated += 1
 
         conn.close()
@@ -1158,7 +1241,23 @@ def generate_payslip_pdf(user, slip):
 
     # Country-specific labels and currency
     country = slip.get('payroll_country', 'IN')
-    if country == 'CA':
+    if country == 'SG':
+        curr = 'S$'
+        residency = slip.get('residency_status', 'citizen') or 'citizen'
+        earn_labels = [('Gross Salary', slip.get('basic', 0))]
+        ded_labels = []
+        if float(slip.get('pf_employee', 0) or 0) > 0:
+            ded_labels.append(('CPF (Employee)', slip.get('pf_employee', 0)))
+        if float(slip.get('esi_employee', 0) or 0) > 0:
+            ded_labels.append(('Skills Dev. Levy (SDL)', slip.get('esi_employee', 0)))
+        if float(slip.get('professional_tax', 0) or 0) > 0:
+            ded_labels.append(('Withholding Tax (15%)', slip.get('professional_tax', 0)))
+        id_label_1 = 'NRIC/FIN'
+        id_label_2 = 'UEN'
+        cpf_er = float(slip.get('pf_employer', 0) or 0)
+        sdl    = float(slip.get('esi_employee', 0) or 0)
+        employer_labels = f"CPF (Employer): S${cpf_er:,.2f}    |    SDL: S${sdl:,.2f}" if cpf_er > 0 else f"SDL: S${sdl:,.2f}"
+    elif country == 'CA':
         curr = 'C$'
         earn_labels = [('Gross Salary', slip.get('basic', 0))]
         ded_labels = [

@@ -25,6 +25,7 @@
                         <option value="UK" {% if employee and employee.payroll_country=='UK' %}selected{% endif %}>🇬🇧 United Kingdom</option>
                         <option value="EU" {% if employee and employee.payroll_country=='EU' %}selected{% endif %}>🇪🇺 European Union</option>
                         <option value="MY" {% if employee and employee.payroll_country=='MY' %}selected{% endif %}>🇲🇾 Malaysia</option>
+                        <option value="SG" {% if employee and employee.payroll_country=='SG' %}selected{% endif %}>🇸🇬 Singapore</option>
                     </select>
                 </div>
                 <div class="form-group"><label>Employee Code</label><input type="text" name="emp_code" value="{{ employee.emp_code or '' if employee else '' }}" placeholder="EMP001"></div>
@@ -90,6 +91,25 @@
                 <div class="form-group"><label>IC Number (MyKad)</label><input type="text" name="pan_number" value="{{ employee.pan_number or '' if employee else '' }}" placeholder="e.g. 900101-14-1234"></div>
                 <div class="form-group"><label>EPF Number</label><input type="text" name="uan_number" value="{{ employee.uan_number or '' if employee else '' }}" placeholder="EPF member number"></div>
                 <div class="form-group"><label>SOCSO Number</label><input type="text" name="esi_number" value="{{ employee.esi_number or '' if employee else '' }}" placeholder="SOCSO/PERKESO number"></div>
+            </div>
+            <div class="row-2 sg-fields" style="display:none">
+                <div class="form-group">
+                    <label>NRIC / FIN Number</label>
+                    <input type="text" name="pan_number" value="{{ employee.pan_number or '' if employee else '' }}" placeholder="e.g. S1234567D">
+                </div>
+                <div class="form-group">
+                    <label>Age <small style="color:#888">(determines CPF band)</small></label>
+                    <input type="number" name="age" value="{{ employee.age or 30 if employee else 30 }}" min="16" max="80">
+                </div>
+                <div class="form-group">
+                    <label>Residency Status</label>
+                    <select name="residency_status">
+                        <option value="citizen" {% if employee and employee.residency_status=='citizen' %}selected{% endif %}>🇸🇬 Citizen / 3rd Year PR+</option>
+                        <option value="pr" {% if employee and employee.residency_status=='pr' %}selected{% endif %}>PR (1st/2nd Year)</option>
+                        <option value="ep_holder" {% if employee and employee.residency_status=='ep_holder' %}selected{% endif %}>EP / S-Pass Holder</option>
+                        <option value="non_resident" {% if employee and employee.residency_status=='non_resident' %}selected{% endif %}>Non-Resident</option>
+                    </select>
+                </div>
             </div>
         </div>
 
@@ -218,6 +238,7 @@ function toggleCountry() {
     const country = document.getElementById('countrySelect').value;
     const isIndia = country === 'IN';
     const isCanada = country === 'CA';
+    const isSG = country === 'SG';
     const isSimple = ['US','UK','EU','MY'].includes(country);
     document.querySelectorAll('.india-fields,.india-salary-fields,.india-hint,.india-state-select').forEach(e => e.style.display = isIndia ? '' : 'none');
     document.querySelectorAll('.canada-fields,.canada-hint').forEach(e => e.style.display = isCanada ? '' : 'none');
@@ -225,9 +246,10 @@ function toggleCountry() {
     document.querySelectorAll('.uk-fields').forEach(e => e.style.display = country === 'UK' ? '' : 'none');
     document.querySelectorAll('.eu-fields').forEach(e => e.style.display = country === 'EU' ? '' : 'none');
     document.querySelectorAll('.my-fields').forEach(e => e.style.display = country === 'MY' ? '' : 'none');
-    document.querySelectorAll('.simple-salary-fields').forEach(e => e.style.display = isSimple ? '' : 'none');
-    const currLabels = {'IN':'(Rs.)','CA':'(C$)','US':'($)','UK':'(GBP)','EU':'(EUR)','MY':'(RM)'};
-    const ctcLabels = {'IN':'Annual CTC','CA':'Annual Gross Salary','US':'Annual Gross Salary','UK':'Annual Gross Salary','EU':'Annual Gross Salary','MY':'Annual Gross Salary'};
+    document.querySelectorAll('.sg-fields').forEach(e => e.style.display = isSG ? '' : 'none');
+    document.querySelectorAll('.simple-salary-fields').forEach(e => e.style.display = (isSimple || isSG) ? '' : 'none');
+    const currLabels = {'IN':'(Rs.)','CA':'(C$)','US':'($)','UK':'(GBP)','EU':'(EUR)','MY':'(RM)','SG':'(S$)'};
+    const ctcLabels = {'IN':'Annual CTC','CA':'Annual Gross Salary','US':'Annual Gross Salary','UK':'Annual Gross Salary','EU':'Annual Gross Salary','MY':'Annual Gross Salary','SG':'Annual Gross Salary'};
     document.querySelector('.ctc-label').textContent = ctcLabels[country] || 'Annual Gross Salary';
     document.querySelector('.curr-label').textContent = currLabels[country] || '($)';
     document.getElementById('taxRegime').closest('.form-group').style.display = isIndia ? '' : 'none';
