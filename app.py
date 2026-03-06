@@ -294,18 +294,59 @@ def demo_auto_login():
 
 @app.route('/demo')
 def demo_login():
-    """One-click demo login."""
+    """One-click demo — shared Bloom Studio account, reseeds every 24h."""
+    from datetime import datetime, timedelta
     demo_email = 'demo@varnam.app'
     conn = get_db(); cur = conn.cursor()
+    try:
+        cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS demo_reset_at TIMESTAMP")
+        if not conn.autocommit: conn.commit()
+    except: pass
     cur.execute('SELECT * FROM users WHERE email=%s', (demo_email,))
     user = cur.fetchone()
+    needs_seed = False
     if not user:
-        cur.execute('INSERT INTO users (email, password_hash, company_name, currency, is_superadmin) VALUES (%s,%s,%s,%s,%s) RETURNING *',
-                   (demo_email, hash_pw('demo123'), 'Bloom Studio', 'INR', True))
+        cur.execute("""INSERT INTO users (email, password_hash, company_name, is_superadmin, demo_reset_at)
+                       VALUES (%s,%s,'Bloom Studio',TRUE,NOW()) RETURNING *""",
+                   (demo_email, hash_pw('demo123')))
         user = cur.fetchone()
         if not conn.autocommit: conn.commit()
+        needs_seed = True
+    else:
+        last_reset = user.get('demo_reset_at')
+        if not last_reset or (datetime.utcnow() - last_reset.replace(tzinfo=None)) > timedelta(hours=24):
+            needs_seed = True
+    uid = user['id']
+    if needs_seed:
+        cur.execute("DELETE FROM payslips WHERE user_id=%s", (uid,))
+        cur.execute("DELETE FROM employees WHERE user_id=%s", (uid,))
+        cur.execute("UPDATE users SET demo_reset_at=NOW() WHERE id=%s", (uid,))
+        emps = [
+            ('BLM-001','Arjun Nair','arjun@bloomstudio.in','Design','Senior Designer','2023-06-15',840000),
+            ('BLM-002','Sneha Patel','sneha@bloomstudio.in','Development','Full Stack Developer','2024-01-10',960000),
+            ('BLM-003','Karthik Reddy','karthik@bloomstudio.in','Design','Junior Designer','2025-03-01',480000),
+        ]
+        eids = []
+        for e in emps:
+            cur.execute("""INSERT INTO employees (user_id,emp_code,name,email,department,designation,date_of_joining,
+                           ctc_annual,basic_percent,hra_percent,payroll_country)
+                           VALUES (%s,%s,%s,%s,%s,%s,%s,%s,40,50,'IN') RETURNING id""",
+                       (uid,e[0],e[1],e[2],e[3],e[4],e[5],e[6]))
+            eids.append(cur.fetchone()['id'])
+        slips = [
+            (eids[0],1,2026,28000,14000,28000,70000,1800,1800,0,0,200,5833,9633,60367),
+            (eids[1],1,2026,32000,16000,32000,80000,1800,1800,0,0,200,6667,10467,69533),
+            (eids[2],1,2026,16000,8000,16000,40000,1800,1800,780,780,200,1667,7027,32973),
+        ]
+        for s in slips:
+            cur.execute("""INSERT INTO payslips (user_id,employee_id,month,year,basic,hra,special_allowance,gross_earnings,
+                           pf_employee,pf_employer,esi_employee,esi_employer,professional_tax,tds,total_deductions,net_pay,status,company_name)
+                           VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'final','Bloom Studio')
+                           ON CONFLICT DO NOTHING""",
+                       (uid,)+s)
+        if not conn.autocommit: conn.commit()
     session.clear()
-    session['user_id'] = user['id']
+    session['user_id'] = uid
     session.permanent = True
     conn.close()
     return redirect('/')
