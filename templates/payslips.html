@@ -66,7 +66,13 @@
                 <td>Rs.{{ "{:,.0f}".format(s.pf_employee) }}</td>
                 <td>Rs.{{ "{:,.0f}".format(s.tds) }}</td>
                 <td><strong>Rs.{{ "{:,.0f}".format(s.net_pay) }}</strong></td>
-                <td class="actions"><a href="/payslip/{{ s.id }}">View</a> · <a href="/payslip/{{ s.id }}/pdf">PDF</a></td>
+                <td class="actions">
+                    <a href="/payslip/{{ s.id }}">View</a> · <a href="/payslip/{{ s.id }}/pdf">PDF</a>
+                    &nbsp;·&nbsp;
+                    <form method="POST" action="/payslip/{{ s.id }}/delete" style="display:inline" onsubmit="return confirm('Delete this payslip?')">
+                        <button type="submit" style="background:none;border:none;color:#ef4444;font-size:13px;font-weight:500;cursor:pointer;padding:0;font-family:inherit">Delete</button>
+                    </form>
+                </td>
             </tr>
             {% endfor %}
             </tbody>

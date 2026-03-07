@@ -1051,6 +1051,41 @@ def edit_employee(emp_id):
     conn.close()
     return render_template('employee_form.html', user=user, employee=emp)
 
+@app.route('/employee/<int:emp_id>/delete', methods=['POST'])
+@login_required
+def delete_employee(emp_id):
+    user = get_user()
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute('SELECT id FROM employees WHERE id=%s AND user_id=%s', (emp_id, user['id']))
+    if not cur.fetchone():
+        conn.close()
+        flash('Employee not found', 'error')
+        return redirect(url_for('employees'))
+    cur.execute('DELETE FROM payslips WHERE employee_id=%s AND user_id=%s', (emp_id, user['id']))
+    cur.execute('DELETE FROM employees WHERE id=%s AND user_id=%s', (emp_id, user['id']))
+    conn.commit()
+    conn.close()
+    flash('Employee deleted', 'success')
+    return redirect(url_for('employees'))
+
+@app.route('/payslip/<int:slip_id>/delete', methods=['POST'])
+@login_required
+def delete_payslip(slip_id):
+    user = get_user()
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute('SELECT id FROM payslips WHERE id=%s AND user_id=%s', (slip_id, user['id']))
+    if not cur.fetchone():
+        conn.close()
+        flash('Payslip not found', 'error')
+        return redirect(url_for('payslips'))
+    cur.execute('DELETE FROM payslips WHERE id=%s AND user_id=%s', (slip_id, user['id']))
+    conn.commit()
+    conn.close()
+    flash('Payslip deleted', 'success')
+    return redirect(url_for('payslips'))
+
 # --- Generate Payslips ---
 @app.route('/generate', methods=['GET', 'POST'])
 @login_required

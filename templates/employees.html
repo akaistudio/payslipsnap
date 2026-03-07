@@ -51,7 +51,13 @@
                 <td>{{ e.designation or '-' }}</td>
                 <td><strong>Rs.{{ "{:,.0f}".format(e.ctc_annual) }}</strong><br><span style="font-size:12px;color:#94a3b8">Rs.{{ "{:,.0f}".format(e.ctc_annual/12) }}/mo</span></td>
                 <td><span class="status {{ e.status }}">{{ e.status | capitalize }}</span></td>
-                <td class="actions"><a href="/employee/{{ e.id }}/edit">Edit</a></td>
+                <td class="actions">
+                    <a href="/employee/{{ e.id }}/edit">Edit</a>
+                    &nbsp;·&nbsp;
+                    <form method="POST" action="/employee/{{ e.id }}/delete" style="display:inline" onsubmit="return confirm('Delete {{ e.name }}? This also deletes their payslips.')">
+                        <button type="submit" style="background:none;border:none;color:#ef4444;font-size:13px;font-weight:500;cursor:pointer;padding:0;font-family:inherit">Delete</button>
+                    </form>
+                </td>
             </tr>
             {% endfor %}
             {% if not employees %}
