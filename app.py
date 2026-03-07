@@ -109,6 +109,7 @@ def init_db():
         generated_at TIMESTAMP DEFAULT NOW(),
         UNIQUE(employee_id, month, year)
     )''')
+    conn.commit()
     conn.close()
 
     # Migrations
@@ -139,7 +140,8 @@ def init_db():
         try:
             cur.execute(m)
         except Exception:
-            pass
+            conn.rollback()
+    conn.commit()
     conn.close()
 
 init_db()
