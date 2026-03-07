@@ -282,45 +282,26 @@ def auto_login():
     session.permanent = True
     return redirect('/')
 
-@app.route('/demo')
-def demo_auto_login():
-    conn = get_db(); cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-    cur.execute("SELECT * FROM users WHERE email='demo@varnam.app'")
-    user = cur.fetchone(); conn.close()
-    if user:
-        session['user_id'] = user['id']
-        return redirect('/')
-    return redirect('/login')
 
 @app.route('/demo')
 def demo_login():
-    """One-click demo — shared Bloom Studio account, reseeds every 24h."""
-    from datetime import datetime, timedelta
+    """One-click demo — shared Bloom Studio account. Seed on first visit only."""
     demo_email = 'demo@varnam.app'
     conn = get_db(); cur = conn.cursor()
-    try:
-        cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS demo_reset_at TIMESTAMP")
-        if not conn.autocommit: conn.commit()
-    except: pass
     cur.execute('SELECT * FROM users WHERE email=%s', (demo_email,))
     user = cur.fetchone()
     needs_seed = False
     if not user:
-        cur.execute("""INSERT INTO users (email, password_hash, company_name, is_superadmin, demo_reset_at)
-                       VALUES (%s,%s,'Bloom Studio',TRUE,NOW()) RETURNING *""",
+        cur.execute("""INSERT INTO users (email, password_hash, company_name, is_superadmin)
+                       VALUES (%s,%s,'Bloom Studio',TRUE) RETURNING *""",
                    (demo_email, hash_pw('demo123')))
         user = cur.fetchone()
         if not conn.autocommit: conn.commit()
         needs_seed = True
-    else:
-        last_reset = user.get('demo_reset_at')
-        if not last_reset or (datetime.utcnow() - last_reset.replace(tzinfo=None)) > timedelta(hours=24):
-            needs_seed = True
     uid = user['id']
     if needs_seed:
         cur.execute("DELETE FROM payslips WHERE user_id=%s", (uid,))
         cur.execute("DELETE FROM employees WHERE user_id=%s", (uid,))
-        cur.execute("UPDATE users SET demo_reset_at=NOW() WHERE id=%s", (uid,))
         emps = [
             ('BLM-001','Arjun Nair','arjun@bloomstudio.in','Design','Senior Designer','2023-06-15',840000),
             ('BLM-002','Sneha Patel','sneha@bloomstudio.in','Development','Full Stack Developer','2024-01-10',960000),
